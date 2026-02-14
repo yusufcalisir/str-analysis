@@ -39,7 +39,11 @@ app = FastAPI(
 # --- CORS Configuration ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://vantage-str.vercel.app",
+        "https://str-analysis.vercel.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -411,10 +415,51 @@ async def get_phenotype(profile_id: str) -> PhenotypeReport:
             logger.error(f"[MAIN] Phenotype analysis error for {profile_id}: {exc}")
             # Fall through to engine-only
 
+
     # Fallback: engine-only prediction
     from app.core.engine.phenotype_engine import PhenotypePredictor
     predictor = PhenotypePredictor()
     result = predictor.predict(profile_id, snp_map)
+    
+    # ── GEN-AI INTEGRATION (Fallback Mode) ──
+    # Explicitly trigger visual reconstruction so the frontend isn't left empty
+    try:
+        from app.core.engine.prompt_architect import SuspectPromptGenerator
+        from app.infrastructure.gen_ai_client import get_gen_ai_client
+        
+        # 1. Generate Prompt
+        # Note: In a real system, we'd infer sex from AMEL marker in STR profile
+        # For this fallback, we default to "male" or derive if possible
+        sex_hint = "male" 
+        if "female" in profile_id.lower(): sex_hint = "female"
+        
+        prompt_gen = SuspectPromptGenerator()
+        generated_prompt = prompt_gen.generate(result, sex_hint=sex_hint)
+        
+        # 2. Generate Image (Mock or Real)
+        # Using "mock" provider by default for speed/stability unless configured
+        client = get_gen_ai_client(provider="mock") 
+        gen_result = await client.generate_suspect_visual(
+            prompt=generated_prompt.positive,
+            negative_prompt=generated_prompt.negative,
+            seed=generated_prompt.seed
+        )
+        
+        # 3. Enrich Result
+        result["image_url"] = gen_result.image_url
+        result["positive_prompt"] = generated_prompt.positive
+        result["negative_prompt"] = generated_prompt.negative
+        result["seed"] = generated_prompt.seed
+        result["trait_summary"] = generated_prompt.trait_summary
+        result["genai_model_id"] = gen_result.model_id
+        
+        # Cache the enriched result
+        _ANALYSIS_CACHE[profile_id] = result
+        
+    except Exception as e:
+        logger.error(f"[MAIN] Visual reconstruction failed in fallback: {e}")
+        # Failure here is non-blocking for the text report, but UI will show NO_DATA image
+    
     return PhenotypeReport(**result)
 
 
@@ -725,3 +770,10 @@ def kinship_analysis(req: KinshipRequest):
     )
 
     return result.to_dict()
+
+
+if __name__ == "__main__":
+    import uvicorn
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)

@@ -115,15 +115,34 @@ class MilvusGenomicClient:
         Raises:
             ConnectionError: If Milvus server is unreachable.
         """
+        from app.core.config import settings
+        
         try:
             from pymilvus import connections
-            connections.connect(alias="default", host=self._host, port=str(self._port))
+            
+            if settings.MILVUS_URI:
+                # Cloud/Production Connection
+                connections.connect(
+                    alias="default",
+                    uri=settings.MILVUS_URI,
+                    token=settings.MILVUS_TOKEN
+                )
+                logger.info(f"Connected to Cloud Milvus at {settings.MILVUS_URI}")
+            else:
+                # Local/Traditional Connection
+                connections.connect(
+                    alias="default", 
+                    host=self._host, 
+                    port=str(self._port)
+                )
+                logger.info(f"Connected to Milvus at {self._host}:{self._port}")
+            
             self._connected = True
-            logger.info(f"Connected to Milvus at {self._host}:{self._port}")
         except Exception as exc:
             self._connected = False
+            uri_info = settings.MILVUS_URI if settings.MILVUS_URI else f"{self._host}:{self._port}"
             raise ConnectionError(
-                f"Failed to connect to Milvus at {self._host}:{self._port}: {exc}"
+                f"Failed to connect to Milvus at {uri_info}: {exc}"
             ) from exc
 
     def disconnect(self) -> None:

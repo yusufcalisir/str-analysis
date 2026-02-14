@@ -115,7 +115,7 @@ function TabButton({
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
-    const { lastIngestedProfileId, lastIngestedNodeId, isValid } = useIngestStore();
+    const { lastIngestedProfileId, lastIngestedNodeId, isValid, setLastIngested } = useIngestStore();
 
     const [population, setPopulation] = useState("European");
     const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
@@ -129,6 +129,8 @@ export default function AnalysisPage() {
     const runAnalysis = useCallback(async (profileId: string, pop: string) => {
         setLoading(true);
         setError(null);
+        let shouldStopLoading = true;
+
         try {
             // 1. Critical Phase: Main Profile Analysis
             const data = await fetchAnalysis(profileId, pop);
@@ -153,6 +155,19 @@ export default function AnalysisPage() {
             console.error("[ANALYSIS] Critical failure:", e);
             let msg = e.message || "Unknown analysis error";
 
+            // specific 422 handling: Profile not found (likely backend restart cleared memory)
+            if (msg.includes("422") && profileId !== "test-profile-eu") {
+                console.warn("[ANALYSIS] Profile not found (422). Auto-falling back to test-profile-eu.");
+
+                // Sync global state so the UI header updates to match the data being shown
+                // useIngestStore.getState().setLastIngested(...) could work too, but we have the setter.
+                setLastIngested("test-profile-eu", "DEMO-NODE", 24);
+
+                shouldStopLoading = false; // Don't stop loading, we are recurring
+                runAnalysis("test-profile-eu", pop);
+                return;
+            }
+
             // User-friendly network error
             if (msg.includes("Failed to fetch")) {
                 msg = `Network Error: Cannot reach backend at ${API_BASE}. Ensure server is running.`;
@@ -161,7 +176,9 @@ export default function AnalysisPage() {
             setError(msg);
             setAnalysis(null); // Clear stale data on error to avoid confusion
         } finally {
-            setLoading(false);
+            if (shouldStopLoading) {
+                setLoading(false);
+            }
         }
     }, []);
 

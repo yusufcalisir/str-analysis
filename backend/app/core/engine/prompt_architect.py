@@ -1,22 +1,20 @@
 """
-SuspectPromptGenerator — VANTAGE-STR Forensic 3D Composite System.
+SuspectPromptGenerator — VANTAGE-STR Forensic Photorealistic System.
 
 Phase 3.4: Generative AI Face Reconstruction.
 
 /// ROLE & LEGAL DIRECTIVE ///
 This module is the VANTAGE-STR Digital Forensic Modeler. It generates
-3D Composite Profile prompts based on genetic data. It strictly avoids
-generating realistic human photography to remain compliant with privacy
-laws (KVKK/GDPR). Output must clearly look like a high-fidelity 3D
-digital reconstruction, similar to medical or forensic modeling software.
+high-fidelity forensic mugshot prompts based on genetic data.
+Output must be indistinguishable from a real photograph captured in a
+controlled forensic laboratory setting.
 
 /// VISUAL STYLE ///
-- Medium: Professional 3D CGI rendering (Medical Simulation / Forensic Reconstruction)
-- Skin: Clean, simplified 3D skin shader. Matte silicone or digital clay.
-- Lighting: Flat, overhead studio lighting for craniofacial geometry.
-- Background: Solid neutral gradient (light blue to white), clinical lab aesthetic.
-- Banner: "COMPOSITE PROFILE" header (embedded in prompt)
-- Watermark: DNA double-helix icon at base of neck
+- Medium: Raw Forensic Photography (85mm lens, f/8 aperture).
+- Skin: Unretouched, visible pores, uneven tone, natural oils.
+- Lighting: Harsh clinical overhead lighting, neutral gray background.
+- Context: Mugshot / Clinical Portrait.
+- No Aesthetic Bias: Neutral, objective, anatomical.
 
 Reference: FISWG (Facial Identification Scientific Working Group) guidelines.
 """
@@ -30,141 +28,118 @@ logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# PHENOTYPE → 3D COMPOSITE DESCRIPTOR MAPPING
+# PHENOTYPE → FORENSIC DESCRIPTOR MAPPING
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Eye color — 3D digital iris descriptors
+# Eye descriptors - Medical/Anatomical
 EYE_COLOR_DESCRIPTORS: Dict[str, str] = {
     "Blue": (
-        "clear steel blue 3D-rendered irises, digital non-organic iris texture, "
-        "visible geometric iris fiber pattern, clean specular highlight"
+        "piercing light blue eyes with realistic iris patterns, "
+        "visible limbal ring, distinct crypts and furrows, "
+        "clear sclera with natural vascularization"
     ),
     "Green/Hazel": (
-        "hazel-green 3D-rendered irises with amber ring, "
-        "digital non-organic iris texture, clean geometric pattern"
+        "complex hazel-green eyes with central heterochromia, "
+        "amber collarette around the pupil, dark limbal ring, "
+        "highly detailed iris stroma"
     ),
     "Brown": (
-        "deep brown 3D-rendered irises, rich warm digital iris texture, "
-        "smooth non-organic surface, clean specular highlight"
+        "deep brown eyes with rich melanin density, "
+        "smooth velvety iris texture, visible contraction furrows, "
+        "natural light reflection"
     ),
 }
 
-# Hair color — 3D modeled clumps, not individual strands
+# Hair descriptors - Morphology & Texture
 HAIR_COLOR_DESCRIPTORS: Dict[str, str] = {
     "Red": (
-        "3D-modeled auburn-red hair, simplified fiber clumps, "
-        "solid copper tone, clean sculpted lines, no stray hairs"
+        "natural auburn-red hair with photorealistic texture, "
+        "mix of copper and strawberry blond individual strands, "
+        "visible vellus hair at hairline"
     ),
     "Blond": (
-        "3D-modeled light blond hair, simplified golden fiber clumps, "
-        "solid color, clean sculpted lines, no stray hairs"
+        "natural light blond hair, fine texture, "
+        "translucent tonal variation, visible individual strands, "
+        "light refraction through hair shaft"
     ),
     "Brown": (
-        "3D-modeled dark brown hair, simplified fiber clumps, "
-        "solid matte finish, clean sculpted lines, no stray hairs"
+        "dark brown hair with natural sheen, "
+        "thick individual strands, visible cuticle texture, "
+        "realistic hairline irregularity"
     ),
     "Black": (
-        "3D-modeled jet-black hair, high-density simplified clumps, "
-        "solid dark color, clean sculpted lines, no stray hairs"
+        "jet-black hair with high melanin content, "
+        "coarse texture, light absorbing, "
+        "high-contrast individual strands against scalp"
     ),
 }
 
-# Skin tone — matte silicone / digital clay shader
+# Skin descriptors - Raw Texture & Reflectance
 SKIN_TONE_DESCRIPTORS: Dict[str, str] = {
     "Very Light": (
-        "very fair 3D skin shader, clean matte porcelain surface, "
-        "Fitzpatrick Type I-II digital tone, smooth silicone-like texture, "
-        "no micro-pores, no blemishes"
+        "Fitzpatrick Type I skin tone, pale with high UV sensitivity, "
+        "translucent epidermis showing underlying vascularity, "
+        "visible scattered ephelides (freckles), unretouched texture"
     ),
     "Light": (
-        "light 3D skin shader with subtle warm undertones, "
-        "Fitzpatrick Type II-III digital tone, clean matte surface, "
-        "smooth silicone-like texture, no micro-pores"
+        "Fitzpatrick Type II-III skin tone, light beige with subtle warm undertones, "
+        "uneven pigmentation, visible pores and micro-comedones, "
+        "natural skin oils, unretouched"
     ),
     "Intermediate": (
-        "medium olive 3D skin shader, warm golden digital tone, "
-        "Fitzpatrick Type III-IV, clean matte surface, "
-        "smooth silicone-like texture, even color"
+        "Fitzpatrick Type III-IV skin tone, olive complexion, "
+        "even melanin distribution, distinct pore structure on nose and cheeks, "
+        "natural localized hyperpigmentation, matte texture"
     ),
     "Dark": (
-        "deep brown 3D skin shader, rich melanin digital tone, "
-        "Fitzpatrick Type V, clean matte surface, "
-        "smooth silicone-like texture, even warm color"
+        "Fitzpatrick Type V skin tone, deep brown melanin rich, "
+        "smooth texture with high specular highlights on cheekbones, "
+        "visible pores, unretouched natural skin sheen"
     ),
     "Very Dark": (
-        "very dark ebony 3D skin shader, deep digital tone, "
-        "Fitzpatrick Type VI, clean matte surface, "
-        "smooth silicone-like texture, rich even color"
+        "Fitzpatrick Type VI skin tone, deep ebony complexion, "
+        "light-absorbing epidermis with sharp specular highlights, "
+        "smooth dense texture, unretouched"
     ),
 }
 
-# Ancestry → craniofacial bone structure (geometric precision)
+# Ancestry descriptors - Craniofacial Anthropometry
 ANCESTRY_FACIAL_DESCRIPTORS: Dict[str, str] = {
     "European": (
-        "Northern European craniofacial geometry, "
-        "moderate brow ridge with sharp geometric clarity, "
-        "narrow nasal bridge, defined angular cheekbones, "
-        "medium lip volume, angular jawline"
+        "European ancestry facial morphology, Orthognathic profile, "
+        "prominent nasal spine, narrow high nasal bridge, "
+        "sharp zygomatic arches, thin lips, defined mandibular angle"
     ),
     "African": (
-        "West African craniofacial geometry, "
-        "broad nasal bridge with rounded geometric form, "
-        "full lips, prominent high cheekbones, "
-        "wide facial structure, rounded jawline"
+        "Sub-Saharan African ancestry facial morphology, Prognathic profile, "
+        "wider interorbital distance, broad nasal bridge and aperture, "
+        "full mucosal lip height, convex maxilla, strong jawline"
     ),
     "East Asian": (
-        "East Asian craniofacial geometry, "
-        "epicanthic fold modeled, flat nasal bridge, "
-        "high prominent cheekbones, moderate lip volume, "
-        "rounded jawline, smooth forehead plane"
+        "East Asian ancestry facial morphology, "
+        "Orthognathic profile with flatter midface, "
+        "pronounced zygomatic projection, low nasal bridge, "
+        "presence of epicanthic folds, shovel-shaped incisors indication"
     ),
     "South Asian": (
-        "South Asian craniofacial geometry, "
-        "moderate nasal bridge, defined brow ridge, "
-        "high cheekbones, medium lip volume, "
-        "oval face shape"
+        "South Asian ancestry facial morphology, "
+        "mesocephalic head shape, moderate nasal bridge height, "
+        "distinct almond-shaped orbital structure, "
+        "full lips, soft tissue thickness variance"
     ),
 }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# CORE 3D FORENSIC COMPOSITE SYSTEM PROMPT
+# CORE PROMPT TEMPLATES (SENIOR FORENSIC GENETICIST MODE)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-FORENSIC_SYSTEM_PROMPT: str = (
-    "Professional 3D CGI forensic facial reconstruction, "
-    "medical simulation quality, digital forensic composite profile. "
-    "High-fidelity 3D digital render, NOT a photograph. "
-    "Clean simplified 3D skin shader, matte silicone or digital clay surface, "
-    "no realistic micro-pores, no photographic imperfections, no real-world blemishes. "
-    "Flat overhead studio lighting emphasizing craniofacial geometry, "
-    "no dramatic shadows, no cinematic lighting. "
-    "Solid neutral gradient background from light blue to white, "
-    "clinical forensic laboratory aesthetic. "
-    "Thick red banner at the top reading 'COMPOSITE PROFILE' in bold white sans-serif typography. "
-    "Small DNA double-helix icon watermark at the base of the neck. "
-    "Skeletal foundation focus with sharp geometric clarity on bone structure. "
-    "3D-modeled simplified hair fiber clumps, solid color, clean lines. "
-    "3D-rendered digital eye models with clear color but non-organic iris texture. "
-    "Front-facing, neutral expression, no emotion. "
-    "Single subject only"
-)
-
-# ── Negative Prompt — Blocks ALL Photorealism ──
 NEGATIVE_PROMPT: str = (
-    "real human photo, raw photography, 8k portrait, cinematic, "
-    "skin pores, realistic sweat, bokeh, real-world background, "
-    "jewelry, smiling, emotional expressions, messy hair, "
-    "artistic shadows, film grain, DSLR style, "
-    "Hasselblad, Canon, Nikon, camera lens, shallow depth of field, "
-    "photorealistic, hyperrealistic, realistic skin texture, "
-    "blemishes, wrinkles, acne, scars, blood vessels, "
-    "vellus hair, peach fuzz, subsurface scattering, "
-    "anime, cartoon, painting, watercolor, sketch, illustration, "
-    "nudity, nsfw, suggestive, "
-    "multiple people, extra limbs, deformed, disfigured, "
-    "bad anatomy, bad proportions, mutation, extra fingers, "
-    "watermark, text overlay, logo, signature, border, frame"
+    "3d render, cgi, cartoon, anime, illustration, painting, drawing, sketch, "
+    "smooth skin, plastic skin, doll, low resolution, blurry, distorted, "
+    "makeup, jewelry, smiling, emotional, artistic lighting, cinematic shadows, "
+    "filters, airbrushed, photoshop, watermark, text, logo, "
+    "deformed, bad anatomy, disfigured, mutation, extra limbs"
 )
 
 
@@ -184,39 +159,22 @@ class GeneratedPrompt:
 
 class SuspectPromptGenerator:
     """
-    VANTAGE-STR Digital Forensic Modeler.
-
-    Converts PhenotypeReport data into 3D CGI composite prompts that are
-    KVKK/GDPR compliant. Output resembles medical/forensic modeling software,
-    NOT photography.
-
-    Architecture:
-        1. Extract dominant phenotypic traits (eye, hair, skin, ancestry)
-        2. Map to 3D composite descriptors (matte, geometric, clinical)
-        3. Compose prompt: system → subject → morphology → features
-        4. Apply anti-photorealism negative prompt
-        5. Deterministic seed from profile_id hash
+    VANTAGE-STR Digital Forensic Modeler (Photorealistic Mode).
+    
+    Translates genetic data into standard forensic photography prompts.
     """
 
     def __init__(self) -> None:
-        logger.info("[PROMPT-ARCH] SuspectPromptGenerator initialized (3D Composite Mode — KVKK/GDPR Compliant)")
+        logger.info("[PROMPT-ARCH] SuspectPromptGenerator initialized (Mode: SENIOR FORENSIC GENETICIST)")
 
     @staticmethod
     def _hash_seed(profile_id: str) -> int:
-        """
-        Generate a deterministic seed from profile_id.
-        SHA-256 → 32-bit integer. Same DNA → same reconstruction.
-        """
         hash_bytes = hashlib.sha256(profile_id.encode("utf-8")).digest()
         seed = int.from_bytes(hash_bytes[:4], byteorder="big") & 0x7FFFFFFF
         return seed
 
     @staticmethod
-    def _extract_dominant_trait(
-        traits: List[Dict],
-        trait_name: str,
-    ) -> Tuple[str, float]:
-        """Extract the dominant prediction for a given trait."""
+    def _extract_dominant_trait(traits: List[Dict], trait_name: str) -> Tuple[str, float]:
         for trait in traits:
             if trait.get("trait") == trait_name:
                 return trait.get("dominant_prediction", "Unknown"), trait.get("confidence", 0.0)
@@ -224,7 +182,6 @@ class SuspectPromptGenerator:
 
     @staticmethod
     def _extract_dominant_ancestry(ancestry: Dict[str, float]) -> Tuple[str, float]:
-        """Extract the most likely ancestry from indicators."""
         if not ancestry:
             return "Unknown", 0.0
         dominant = max(ancestry, key=ancestry.get)
@@ -232,141 +189,83 @@ class SuspectPromptGenerator:
 
     @staticmethod
     def _derive_age_range(profile_id: str) -> str:
-        """Derive a plausible age range from profile hash."""
         hash_bytes = hashlib.sha256(profile_id.encode("utf-8")).digest()
         age_byte = hash_bytes[5]
-        age_ranges = [
-            "early 20s", "mid 20s", "late 20s",
-            "early 30s", "mid 30s", "late 30s",
-            "early 40s", "mid 40s",
-        ]
+        # Forensic estimates are rarely exact, using ranges
+        age_ranges = ["20-25", "25-30", "30-35", "35-40", "40-45", "45-50"]
         return age_ranges[age_byte % len(age_ranges)]
 
     @staticmethod
-    def _derive_bone_features(profile_id: str, ancestry_pred: str) -> str:
-        """
-        Derive craniofacial bone structure features from profile hash.
-        These are rendered with geometric precision in the 3D composite.
-        """
+    def _derive_bone_features(profile_id: str) -> str:
+        """Derive specific craniometric features from hash."""
         hash_bytes = hashlib.sha256(profile_id.encode("utf-8")).digest()
         features = []
-
-        # Jawline geometry
+        
+        # Mandible
         if hash_bytes[6] % 3 == 0:
-            features.append("prominent angular jawline with geometric definition")
+            features.append("strong square mandibular angle")
         elif hash_bytes[6] % 3 == 1:
-            features.append("rounded jawline with smooth 3D contour")
-
-        # Brow ridge
-        if hash_bytes[7] % 4 == 0:
-            features.append("heavy brow ridge rendered with sharp geometric clarity")
-
-        # Nasal bridge detail
+            features.append("soft rounded chin")
+            
+        # Zygomatic
+        if hash_bytes[7] % 2 == 0:
+            features.append("high prominent zygomatic arches")
+            
+        # Nasal
         if hash_bytes[8] % 3 == 0:
-            features.append("narrow nasal bridge with defined geometric tip")
-        elif hash_bytes[8] % 3 == 1:
-            features.append("wide nasal bridge with rounded geometric form")
+            features.append("deviated nasal septum")
+        
+        return ", ".join(features)
 
-        # Ear lobes
-        if hash_bytes[9] % 2 == 0:
-            features.append("attached earlobes")
-        else:
-            features.append("detached earlobes")
-
-        # Cheekbone prominence
-        if hash_bytes[10] % 3 == 0:
-            features.append("high prominent cheekbones with sharp geometric planes")
-
-        return ", ".join(features) if features else ""
-
-    def generate(
-        self,
-        phenotype_report: Dict,
-        sex_hint: str = "male",
-    ) -> GeneratedPrompt:
-        """
-        Generate a 3D forensic composite prompt from phenotype data.
-
-        Privacy-compliant output: 3D CGI reconstruction, NOT photography.
-        Includes COMPOSITE PROFILE banner and DNA watermark.
-
-        Args:
-            phenotype_report: Dict from PhenotypePredictor/PhenotypeAnalyst.
-            sex_hint: "male" or "female".
-
-        Returns:
-            GeneratedPrompt with positive/negative prompts and seed.
-        """
+    def generate(self, phenotype_report: Dict, sex_hint: str = "male") -> GeneratedPrompt:
         traits = phenotype_report.get("traits", [])
         ancestry = phenotype_report.get("ancestry_indicators", {})
         profile_id = phenotype_report.get("profile_id", "unknown")
 
-        # ── Extract dominant predictions ──
         eye_pred, eye_conf = self._extract_dominant_trait(traits, "Eye Color")
         hair_pred, hair_conf = self._extract_dominant_trait(traits, "Hair Color")
         skin_pred, skin_conf = self._extract_dominant_trait(traits, "Skin Color")
         ancestry_pred, ancestry_conf = self._extract_dominant_ancestry(ancestry)
 
-        # ── Map to 3D composite descriptors ──
-        eye_desc = EYE_COLOR_DESCRIPTORS.get(eye_pred, "neutral colored 3D-rendered digital irises")
-        hair_desc = HAIR_COLOR_DESCRIPTORS.get(hair_pred, "3D-modeled natural-colored hair clumps")
-        skin_desc = SKIN_TONE_DESCRIPTORS.get(skin_pred, "neutral 3D skin shader, clean matte surface")
-        ancestry_desc = ANCESTRY_FACIAL_DESCRIPTORS.get(
-            ancestry_pred,
-            "mixed-ancestry craniofacial geometry, balanced proportions"
+        eye_desc = EYE_COLOR_DESCRIPTORS.get(eye_pred, "photorealistic eyes")
+        hair_desc = HAIR_COLOR_DESCRIPTORS.get(hair_pred, "natural hair texture")
+        skin_desc = SKIN_TONE_DESCRIPTORS.get(skin_pred, "natural skin texture with visible pores")
+        ancestry_desc = ANCESTRY_FACIAL_DESCRIPTORS.get(ancestry_pred, "mixed ancestry facial morphology")
+        
+        age_range = self._derive_age_range(profile_id)
+        bone_features = self._derive_bone_features(profile_id)
+        
+        sex_term = "Male" if sex_hint.lower() == "male" else "Female"
+
+        # ── Construct the "Senior Forensic Geneticist" Prompt ──
+        # Template: "A clinical... mugshot of a [SEX], estimated age [AGE]. [ANCESTRY]... [EYES]... [HAIR]... [SKIN]... [CAM SPECS]"
+        
+        positive_prompt = (
+            f"A clinical, high-resolution forensic mugshot of a {sex_term}, estimated age {age_range}. "
+            f"{ancestry_desc}. "
+            f"Facial structure features: {bone_features}. "
+            f"Genetically predicted {eye_desc}. "
+            f"{hair_desc}. "
+            f"Skin tone is {skin_desc}. "
+            f"Front-facing view, neutral expression. "
+            f"Captured on 85mm lens, raw photo style, unretouched, 8k resolution, harsh forensic lighting, plain concrete background."
         )
 
-        # ── Derive additional data ──
-        age_range = self._derive_age_range(profile_id)
-        bone_features = self._derive_bone_features(profile_id, ancestry_pred)
+        seed = self._hash_seed(profile_id)
 
-        # ── Build trait summary for UI overlay ──
-        trait_summary: Dict[str, str] = {
+        logger.info(
+            f"[PROMPT-ARCH] Generated Forensic Prompt (Profile: {profile_id})\n"
+            f"  Prompt: {positive_prompt[:100]}..."
+        )
+
+        trait_summary = {
             "Eye Color": f"{eye_pred} ({eye_conf:.0%})",
             "Hair Color": f"{hair_pred} ({hair_conf:.0%})",
             "Skin Tone": f"{skin_pred} ({skin_conf:.0%})",
             "Ancestry": f"{ancestry_pred} ({ancestry_conf:.0%})",
-            "Sex": sex_hint.capitalize(),
+            "Sex": sex_term,
             "Age Range": age_range,
         }
-
-        # ── Compose 3D composite prompt ──
-        sex_token = "adult male" if sex_hint.lower() == "male" else "adult female"
-
-        prompt_parts: List[str] = [
-            # Layer 1: System — 3D CGI enforcement + banner + watermark
-            FORENSIC_SYSTEM_PROMPT,
-            # Layer 2: Subject identity
-            f"(({sex_token} 3D composite)), appears to be in their {age_range}",
-            # Layer 3: Bone structure (craniofacial geometry)
-            f"(({ancestry_desc}))",
-            # Layer 4: Eyes (3D digital model)
-            f"(({eye_desc}))",
-            # Layer 5: Hair (3D sculpted clumps)
-            f"({hair_desc})",
-            # Layer 6: Skin (matte shader)
-            f"({skin_desc})",
-        ]
-
-        # Layer 7: Bone features
-        if bone_features:
-            prompt_parts.append(f"{bone_features}")
-
-        positive_prompt = ", ".join(prompt_parts)
-
-        # ── Generate deterministic seed ──
-        seed = self._hash_seed(profile_id)
-
-        logger.info(
-            f"[PROMPT-ARCH] ═══ 3D Composite Prompt Generated ═══\n"
-            f"  Profile: {profile_id}\n"
-            f"  Eye: {eye_pred} ({eye_conf:.0%}) | Hair: {hair_pred} ({hair_conf:.0%})\n"
-            f"  Skin: {skin_pred} ({skin_conf:.0%}) | Ancestry: {ancestry_pred} ({ancestry_conf:.0%})\n"
-            f"  Age: {age_range} | Seed: {seed}\n"
-            f"  Bone Features: {bone_features or 'None'}\n"
-            f"  Prompt Length: {len(positive_prompt)} chars\n"
-            f"  Mode: KVKK/GDPR COMPLIANT — 3D CGI ONLY"
-        )
 
         return GeneratedPrompt(
             positive=positive_prompt,

@@ -329,21 +329,20 @@ export default function SuspectVisualizer({ profileId }: { profileId?: string })
         if (!data || !containerRef.current) return;
 
         try {
-            // Temporarily hide the download button and other UI controls for the capture
-            const controls = containerRef.current.querySelectorAll("button, .capture-hide");
-            controls.forEach((el) => ((el as HTMLElement).style.opacity = "0"));
-
             const dataUrl = await toPng(containerRef.current, {
                 cacheBust: true,
                 backgroundColor: "#0A0A0B", // Match --color-tactical-bg
                 pixelRatio: 2,
                 style: {
                     borderRadius: "0", // Clean capture
+                },
+                filter: (node) => {
+                    // Exclude buttons and elements usually hidden during capture
+                    if (node.tagName === 'BUTTON') return false;
+                    if (node.classList && node.classList.contains('capture-hide')) return false;
+                    return true;
                 }
             });
-
-            // Restore visibility
-            controls.forEach((el) => ((el as HTMLElement).style.opacity = "1"));
 
             const a = document.createElement("a");
             a.href = dataUrl;
@@ -351,11 +350,7 @@ export default function SuspectVisualizer({ profileId }: { profileId?: string })
             a.click();
         } catch (err) {
             console.error("Poster generation failed:", err);
-            // Re-show controls on error just in case
-            if (containerRef.current) {
-                const controls = containerRef.current.querySelectorAll("button, .capture-hide");
-                controls.forEach((el) => ((el as HTMLElement).style.opacity = "1"));
-            }
+            // No UI restoration needed since we didn't mutate the DOM
         }
     }, [data]);
 

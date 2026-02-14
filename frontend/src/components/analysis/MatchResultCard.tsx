@@ -355,55 +355,74 @@ export default function MatchResultCard({ match }: { match: MatchResultData }) {
             className={`border rounded overflow-hidden bg-tactical-bg ${tier.border}`}
         >
             {/* ── Main Row ── */}
-            <div className="flex items-center gap-4 px-4 py-3">
-                {/* Completeness Ring */}
-                <CompletenessRing
-                    ratio={match.completenessRatio}
-                    tier={match.qualityTier}
-                    size={48}
-                />
+            {/* ── Main Layout: Responsive Stack ── */}
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4 px-4 py-4 sm:py-3">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                    {/* Completeness Ring */}
+                    <div className="flex-shrink-0">
+                        <CompletenessRing
+                            ratio={match.completenessRatio}
+                            tier={match.qualityTier}
+                            size={48}
+                        />
+                    </div>
 
-                {/* Profile Info */}
-                <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                        <span className="font-data text-[11px] font-bold text-tactical-text truncate">
-                            {match.profileId}
-                        </span>
-                        <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[7px] font-data font-bold uppercase tracking-wider ${tier.bgFaint} ${tier.color} ${tier.border} border`}>
-                            <TierIcon className="w-2.5 h-2.5" />
-                            {tier.label}
+                    {/* Profile Info */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                            <span className="font-data text-[11px] font-bold text-tactical-text truncate max-w-[140px] sm:max-w-none">
+                                {match.profileId}
+                            </span>
+                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[7px] font-data font-bold uppercase tracking-wider ${tier.bgFaint} ${tier.color} ${tier.border} border whitespace-nowrap`}>
+                                <TierIcon className="w-2.5 h-2.5" />
+                                {tier.label}
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-[9px] font-data text-zinc-500">
+                            <span className="flex items-center gap-1">
+                                <MapPin className="w-2.5 h-2.5" />
+                                {match.nodeId}
+                            </span>
+                            <span className="flex items-center gap-1 border-l border-zinc-800 pl-3">
+                                <Dna className="w-2.5 h-2.5" />
+                                {match.activeLoci}/{match.totalLoci} loci
+                            </span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-3 text-[9px] font-data text-zinc-500">
-                        <span className="flex items-center gap-1">
-                            <MapPin className="w-2.5 h-2.5" />
-                            {match.nodeId}
-                        </span>
-                        <span className="flex items-center gap-1">
-                            <Dna className="w-2.5 h-2.5" />
-                            {match.activeLoci}/{match.totalLoci} loci
-                        </span>
+                </div>
+
+                {/* Stats and Controls Row */}
+                <div className="flex items-center justify-between sm:justify-end gap-6 w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t border-zinc-900/50 sm:border-0">
+                    {/* Scores */}
+                    <div className="flex items-center gap-4">
+                        <ScoreDisplay label="Raw Sim" value={match.rawSimilarity} variant="muted" />
+                        <ScoreDisplay label="Penalized" value={match.penalizedScore} variant="primary" />
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                        {/* ZKP Status Badge */}
+                        {match.zkpStatus && match.zkpStatus !== "none" && (
+                            <div className="hidden xs:block">
+                                <CryptoStatusBadge status={match.zkpStatus} />
+                            </div>
+                        )}
+
+                        {/* Expand toggle */}
+                        <button
+                            onClick={() => setExpanded(!expanded)}
+                            className="flex items-center justify-center w-6 h-6 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors bg-zinc-900/30"
+                        >
+                            {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </button>
                     </div>
                 </div>
 
-                {/* Scores */}
-                <div className="flex items-center gap-4">
-                    <ScoreDisplay label="Raw Sim" value={match.rawSimilarity} variant="muted" />
-                    <ScoreDisplay label="Penalized" value={match.penalizedScore} variant="primary" />
-                </div>
-
-                {/* ZKP Status Badge */}
+                {/* Mobile ZKP (Visible only on mobile when hidden in row) */}
                 {match.zkpStatus && match.zkpStatus !== "none" && (
-                    <CryptoStatusBadge status={match.zkpStatus} />
+                    <div className="xs:hidden block pt-1">
+                        <CryptoStatusBadge status={match.zkpStatus} />
+                    </div>
                 )}
-
-                {/* Expand toggle */}
-                <button
-                    onClick={() => setExpanded(!expanded)}
-                    className="flex items-center justify-center w-6 h-6 rounded border border-zinc-800 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                    {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                </button>
             </div>
 
             {/* ── Completeness Bar ── */}
