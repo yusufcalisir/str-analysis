@@ -195,6 +195,34 @@ _STR_STORE: Dict[str, Dict[str, tuple]] = {
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# SYSTEM ENDPOINTS
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/health", tags=["System"])
+def health_check():
+    """
+    Secure health check endpoint for uptime monitoring.
+    Returns 200 OK if the API is responsive.
+    Does not expose sensitive internal state.
+    """
+    uptime_seconds = time.time() - _BOOT_TIME
+    
+    # Safe checks
+    db_status = "disabled"
+    if settings.DATABASE_URL:
+        # We perform a shallow config check instead of a blocking ping
+        # to ensure this endpoint remains fast and safe.
+        db_status = "configured"
+
+    return {
+        "status": "ok",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "uptime_seconds": round(uptime_seconds, 2),
+        "database": db_status
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
 
