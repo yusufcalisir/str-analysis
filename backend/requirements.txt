@@ -11,7 +11,7 @@ grpcio-tools==1.60.0
 python-multipart==0.0.9
 requests==2.31.0
 numpy==1.26.4
-pandas==2.2.0
+pandas==2.1.4
 dspy-ai==2.1.9
 cryptography==42.0.2
 python-jose[cryptography]==3.3.0
