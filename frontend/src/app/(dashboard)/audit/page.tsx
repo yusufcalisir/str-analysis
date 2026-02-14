@@ -138,7 +138,8 @@ function truncateHash(hash: string, start = 8, end = 6): string {
 function formatTimestamp(iso: string): string {
     try {
         const d = new Date(iso);
-        return d.toLocaleTimeString("en-GB", { hour12: false }) + "." + String(d.getMilliseconds()).padStart(3, "0");
+        // Force EN-GB and UTC to prevent hydration mismatch due to server/client timezone/locale differences
+        return d.toLocaleTimeString("en-GB", { hour12: false, timeZone: "UTC" }) + "." + String(d.getMilliseconds()).padStart(3, "0");
     } catch {
         return iso;
     }
@@ -203,13 +204,14 @@ function StatCard({ label, value, color = "text-tactical-text" }: { label: strin
 }
 
 function StatsStrip({ stats }: { stats: LedgerStats }) {
+    // We use toLocaleString('en-US') to ensure hydration stability between different server/client locales
     return (
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-px bg-zinc-800/50 rounded-lg overflow-hidden border border-tactical-border">
-            <StatCard label="Total Entries" value={stats.total_entries.toLocaleString()} />
-            <StatCard label="Verified Proofs" value={stats.verified_proofs.toLocaleString()} color="text-emerald-400" />
-            <StatCard label="Invalid Proofs" value={stats.invalid_proofs} color="text-red-400" />
-            <StatCard label="Reverted Queries" value={stats.reverted_queries} color="text-amber-400" />
-            <StatCard label="Authorized" value={stats.authorized_queries.toLocaleString()} color="text-cyan-400" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-px bg-zinc-800/50 rounded-lg overflow-hidden border border-tactical-border">
+            <StatCard label="Total Entries" value={stats.total_entries.toLocaleString("en-US")} />
+            <StatCard label="Verified Proofs" value={stats.verified_proofs.toLocaleString("en-US")} color="text-emerald-400" />
+            <StatCard label="Invalid Proofs" value={stats.invalid_proofs.toLocaleString("en-US")} color="text-red-400" />
+            <StatCard label="Reverted" value={stats.reverted_queries.toLocaleString("en-US")} color="text-amber-400" />
+            <StatCard label="Authorized" value={stats.authorized_queries.toLocaleString("en-US")} color="text-cyan-400" />
             <StatCard label="Chain Age" value={formatDuration(stats.chain_age_seconds)} />
         </div>
     );
@@ -226,12 +228,12 @@ const FILTER_OPTIONS: { value: FilterType; label: string; icon: typeof Activity 
 
 function FilterBar({ active, onChange }: { active: FilterType; onChange: (f: FilterType) => void }) {
     return (
-        <div className="flex items-center gap-1 p-1 bg-zinc-900/50 rounded-lg border border-tactical-border-subtle">
+        <div className="flex items-center gap-1 p-1 bg-zinc-900/50 rounded-lg border border-tactical-border-subtle overflow-x-auto no-scrollbar max-w-full">
             {FILTER_OPTIONS.map(({ value, label, icon: Icon }) => (
                 <button
                     key={value}
                     onClick={() => onChange(value)}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[9px] font-bold uppercase tracking-wider transition-all ${active === value
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-mono text-[9px] font-bold uppercase tracking-wider transition-all whitespace-nowrap ${active === value
                         ? "bg-tactical-primary/15 text-tactical-primary border border-tactical-primary/25"
                         : "text-zinc-600 hover:text-zinc-400 border border-transparent"
                         }`}
@@ -270,59 +272,70 @@ function EntryRow({ entry, isNew = false }: { entry: LedgerEntry; isNew?: boolea
             initial={isNew ? { opacity: 0, x: -12 } : { opacity: 1 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
-            className={`flex items-center gap-3 px-3 py-2.5 rounded-md border transition-colors hover:bg-zinc-800/30 ${entry.compliance_decision === "reverted"
+            className={`flex flex-col lg:flex-row lg:items-center gap-3 p-3 lg:px-3 lg:py-2.5 rounded-md border transition-colors hover:bg-zinc-800/30 ${entry.compliance_decision === "reverted"
                 ? "border-red-500/15 bg-red-500/5"
                 : "border-tactical-border-subtle bg-tactical-surface/50"
                 }`}
         >
-            {/* Index */}
-            <span className="font-mono text-[9px] text-zinc-700 tabular-nums w-10 text-right flex-shrink-0">
-                #{entry.index}
-            </span>
-
-            {/* Timestamp */}
-            <span className="font-mono text-[9px] text-zinc-500 tabular-nums w-24 flex-shrink-0">
-                {formatTimestamp(entry.timestamp)}
-            </span>
-
-            {/* Node ID */}
-            <span className="font-mono text-[10px] font-bold text-tactical-text w-28 truncate flex-shrink-0">
-                {entry.node_id}
-            </span>
-
-            {/* ZKP Badge */}
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${zkp.bg} flex-shrink-0`}>
-                <ZkpIcon className={`w-2.5 h-2.5 ${zkp.color}`} />
-                <span className={`font-mono text-[7px] font-bold uppercase tracking-wider ${zkp.color}`}>
-                    {entry.zkp_status}
-                </span>
-            </div>
-
-            {/* Compliance */}
-            <span className={`font-mono text-[7px] font-bold uppercase tracking-wider ${compliance.color} w-16 flex-shrink-0`}>
-                {compliance.label}
-            </span>
-
-            {/* Cross-border indicator */}
-            {isCrossBorder && (
-                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 flex-shrink-0">
-                    <Globe className="w-2.5 h-2.5 text-indigo-400" />
-                    <span className="font-mono text-[7px] font-bold text-indigo-400">
-                        {(entry.metadata?.target_country as string) || "??"}
+            {/* Top Line (Mobile: Header, Desktop: Part of row) */}
+            <div className="flex items-center justify-between lg:justify-start gap-3">
+                <div className="flex items-center gap-3">
+                    <span className="font-mono text-[9px] text-zinc-700 tabular-nums w-8 lg:w-10 text-left lg:text-right flex-shrink-0">
+                        #{entry.index}
+                    </span>
+                    <span className="font-mono text-[10px] font-bold text-tactical-text lg:w-28 truncate">
+                        {entry.node_id}
                     </span>
                 </div>
-            )}
 
-            {/* Entry Hash */}
-            <div className="flex-1 min-w-0 flex items-center gap-1">
-                <Hash className="w-2.5 h-2.5 text-zinc-700 flex-shrink-0" />
-                <span className="font-mono text-[8px] text-zinc-600 truncate" title={entry.entry_hash}>
-                    {truncateHash(entry.entry_hash)}
-                </span>
+                {/* Mobile Status Indicators */}
+                <div className="flex lg:hidden items-center gap-2">
+                    <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded ${zkp.bg}`}>
+                        <ZkpIcon className={`w-2.5 h-2.5 ${zkp.color}`} />
+                    </div>
+                    <span className={`font-mono text-[7px] font-bold ${compliance.color}`}>
+                        {compliance.label}
+                    </span>
+                </div>
             </div>
 
-            {/* Chain link indicator */}
-            <Link2 className="w-3 h-3 text-zinc-800 flex-shrink-0" />
+            {/* Middle Line (Mobile: Metadata, Desktop: Part of row) */}
+            <div className="flex items-center justify-between lg:justify-start gap-4 lg:gap-3">
+                <span className="font-mono text-[9px] text-zinc-500 tabular-nums lg:w-24 flex-shrink-0">
+                    {formatTimestamp(entry.timestamp)}
+                </span>
+
+                <div className="hidden lg:flex items-center gap-1 px-1.5 py-0.5 rounded ${zkp.bg} flex-shrink-0">
+                    <ZkpIcon className={`w-2.5 h-2.5 ${zkp.color}`} />
+                    <span className={`font-mono text-[7px] font-bold uppercase tracking-wider ${zkp.color}`}>
+                        {entry.zkp_status}
+                    </span>
+                </div>
+
+                <span className={`hidden lg:block font-mono text-[7px] font-bold uppercase tracking-wider ${compliance.color} lg:w-16 flex-shrink-0`}>
+                    {compliance.label}
+                </span>
+
+                {isCrossBorder && (
+                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-indigo-500/10 flex-shrink-0">
+                        <Globe className="w-2.5 h-2.5 text-indigo-400" />
+                        <span className="font-mono text-[7px] font-bold text-indigo-400">
+                            {(entry.metadata?.target_country as string) || "??"}
+                        </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Bottom Line (Mobile: Hash, Desktop: Flex-1) */}
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 flex items-center gap-1">
+                    <Hash className="w-2.5 h-2.5 text-zinc-700 flex-shrink-0" />
+                    <span className="font-mono text-[8px] text-zinc-600 truncate" title={entry.entry_hash}>
+                        {entry.entry_hash}
+                    </span>
+                </div>
+                <Link2 className="w-3 h-3 text-zinc-800 flex-shrink-0" />
+            </div>
         </motion.div>
     );
 }
@@ -357,13 +370,15 @@ export default function AuditPage() {
             className="space-y-5"
         >
             {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Shield className="w-4 h-4 text-tactical-primary" />
-                    <h1 className="font-data text-xs font-bold tracking-[0.2em] text-tactical-text uppercase">
-                        Forensic_Audit_Ledger
-                    </h1>
-                    <span className="font-data text-[8px] text-zinc-600 tracking-wider uppercase">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-1 lg:gap-3">
+                    <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-tactical-primary" />
+                        <h1 className="font-data text-xs font-bold tracking-[0.1em] lg:tracking-[0.2em] text-tactical-text uppercase">
+                            Forensic_Audit_Ledger
+                        </h1>
+                    </div>
+                    <span className="font-data text-[7px] lg:text-[8px] text-zinc-600 tracking-wider uppercase">
                         Immutable Chain Explorer — Phase 5.1
                     </span>
                 </div>
@@ -417,7 +432,7 @@ export default function AuditPage() {
                     </span>
                 </div>
                 <span className="font-mono text-[8px] text-zinc-700 tabular-nums">
-                    {stats.total_entries.toLocaleString()} blocks
+                    {stats.total_entries.toLocaleString("en-US")} blocks
                 </span>
             </div>
         </motion.div>
