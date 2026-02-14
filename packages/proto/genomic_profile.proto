@@ -1,0 +1,34 @@
+syntax = "proto3";
+
+package vantage.genomics;
+
+import "google/protobuf/timestamp.proto";
+
+// Represents a Short Tandem Repeat (STR) locus
+message STRLocus {
+  string name = 1;      // Locus name (e.g., TH01, D21S11)
+  double allele1 = 2;   // Allele 1 value
+  double allele2 = 3;   // Allele 2 value
+  float confidence = 4; // Confidence score of the call
+}
+
+// Represents a full genomic profile for STR forensic analysis
+message GenomicProfile {
+  string profile_id = 1;                  // Unique profile identifier (UUID)
+  string node_origin = 2;                 // ID of the node that generated this profile
+  google.protobuf.Timestamp created_at = 3;
+  
+  repeated STRLocus loci = 4;             // List of STR loci
+  
+  map<string, string> metadata = 5;       // Additional encrypted metadata
+  
+  bytes vector_representation = 6;        // Pre-computed vector for fast Milvus matching
+}
+
+// Result of a matching query
+message MatchResult {
+  string profile_id = 1;
+  float similarity_score = 2;
+  map<string, STRLocus> matching_loci = 3;
+  string node_owner = 4;
+}

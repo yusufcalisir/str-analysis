@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package vantage_str;
+
+option java_package = "com.vantage.str.genomic";
+option go_package = "github.com/vantage-str/genomic";
+
+// LocusData represents allele repeat counts at a single STR locus.
+// Supports both homozygous (single allele) and heterozygous (two distinct alleles).
+// Allele values are floats to accommodate microvariant alleles (e.g., 9.3 at TH01).
+message LocusData {
+  float allele_1 = 1;
+  float allele_2 = 2;
+  bool is_homozygous = 3;
+}
+
+// GenomicProfile is the core forensic record transmitted between VANTAGE-STR nodes.
+// Each profile originates from a single node (country/agency) and contains a full
+// set of STR marker measurements for cross-border forensic matching.
+message GenomicProfile {
+  // UUID v4 — unique identifier for this genomic profile.
+  string profile_id = 1;
+
+  // Originating node identifier (e.g., "INTERPOL-EU-DE", "FBI-US-TX").
+  string node_id = 2;
+
+  // Key: Marker name (e.g., "D3S1358", "TH01", "FGA").
+  // Value: Allele repeat counts at that locus.
+  map<string, LocusData> str_markers = 3;
+
+  // Reserved for Zero-Knowledge Proof payloads.
+  // Will carry encrypted auxiliary metadata without revealing cleartext.
+  bytes encrypted_metadata = 4;
+
+  // Unix epoch timestamp of profile creation.
+  int64 timestamp = 5;
+
+  // Optional SNP markers for phenotype prediction (Phase 3.3).
+  // Populated when the originating node submits SNP genotyping data
+  // alongside the core STR profile for predictive intelligence.
+  optional SNPMarkers snp_markers = 6;
+}
+
+// SNPMarkers carries Single Nucleotide Polymorphism genotyping data
+// used by the HIrisPlex-S phenotype prediction engine.
+// Key: rsID (e.g., "rs12913832"), Value: Genotype (e.g., "AA", "AG", "GG").
+message SNPMarkers {
+  map<string, string> snp_map = 1;
+}
+
+// IngestResponse confirms receipt and preliminary validation of a submitted profile.
+message IngestResponse {
+  bool accepted = 1;
+  string profile_id = 2;
+  string message = 3;
+  int32 markers_received = 4;
+}

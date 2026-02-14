@@ -1,0 +1,1 @@
+# VANTAGE-STR Integration Module

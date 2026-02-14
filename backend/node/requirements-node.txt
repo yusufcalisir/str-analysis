@@ -1,0 +1,26 @@
+# VANTAGE-Node Python dependencies
+# Optimized for Alpine / musl libc compatibility
+
+# ── Core Framework ──
+fastapi==0.110.0
+uvicorn[standard]==0.27.1
+pydantic==2.6.1
+pydantic-settings==2.1.0
+
+# ── gRPC Communication ──
+grpcio==1.60.1
+grpcio-tools==1.60.1
+protobuf==4.25.2
+
+# ── Vector Database ──
+pymilvus==2.3.6
+
+# ── AI / ML ──
+dspy-ai==2.4.0
+numpy==1.26.4
+
+# ── Cryptography ──
+cryptography==42.0.2
+
+# ── Observability ──
+prometheus-client==0.20.0

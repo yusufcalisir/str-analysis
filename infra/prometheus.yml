@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'vantage-nodes'
+    static_configs:
+      - targets: ['orchestrator:8000', 'jandarma-tr:8000', 'bka-de:8000', 'npa-jp:8000', 'fbi-us:8000', 'pf-br:8000']
+    metrics_path: '/metrics'
