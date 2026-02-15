@@ -103,11 +103,10 @@ class PhenotypeAnalyst(dspy.Module):
         Execute full phenotype analysis pipeline (Async).
 
         Pipeline:
-            1. Run PhenotypePredictor engine for probability distributions.
-            2. If AI is available and not skipped, invoke ChainOfThought
-               for biological reasoning.
-            3. Generate forensic visual reconstruction (GenAI).
-            4. Merge engine probabilities, AI reasoning, and image URL.
+            1. Run Deterministic PhenotypeEngine for strict biological facts.
+            2. Run PhenotypePredictor engine for probability distributions (HIrisPlex-S).
+            3. If AI is available, invoke ChainOfThought with BOTH strict facts and probabilities.
+            4. Merge results into a final report.
 
         Args:
             profile_id: Unique profile identifier.
@@ -118,8 +117,29 @@ class PhenotypeAnalyst(dspy.Module):
         Returns:
             Dict containing trait probabilities, ancestry, reasoning, and image_url.
         """
-        # ── Stage 1: Engine prediction ──
-        engine_result = self.predictor.predict(profile_id, snp_map)
+        # ── Stage 1: Deterministic Phenotype Mapping (Scientific Truth) ──
+        from app.agents.phenotype_engine import PhenotypeEngine
+        strict_engine = PhenotypeEngine()
+        # We need ancestry context for the strict engine, but it comes from the probabilistic engine.
+        # So we run the probabilistic engine first, or run them in parallel.
+        # For simplicity, let's run the probabilistic engine (predictor) first to get ancestry.
+        
+        prob_result = self.predictor.predict(profile_id, snp_map)
+        ancestry_probs = prob_result.get("ancestry_indicators", {})
+        
+        # Now run the strict engine with ancestry context
+        strict_data = strict_engine.predict_phenotype(snp_map, ancestry_context=ancestry_probs)
+        
+        # Serialize biological facts for the Agent
+        biological_facts = []
+        for trait, data in strict_data["traits"].items():
+            value = data
+            sources = strict_data["trait_sources"].get(trait, [])
+            source_str = f"(Source: {', '.join(sources)})" if sources else ""
+            biological_facts.append(f"{trait}: {value} {source_str}")
+        
+        facts_str = "\n".join(biological_facts)
+
         ai_reasoning: Optional[str] = None
 
         # ── Stage 2: DSPy reasoning (conditional) ──
@@ -127,23 +147,24 @@ class PhenotypeAnalyst(dspy.Module):
             try:
                 snp_data = self._serialize_snps(snp_map)
                 trait_probs_json = json.dumps(
-                    {t["trait"]: t["predictions"] for t in engine_result["traits"]},
+                    {t["trait"]: t["predictions"] for t in prob_result["traits"]},
                     indent=2,
                 )
                 population_context = self._build_population_context(
                     node_id,
                     len(snp_map),
-                    engine_result.get("ancestry_indicators", {}),
+                    ancestry_probs,
                 )
 
-                # DSPy calls are synchronous, so we run them directly
+                # DSPy calls are synchronous
                 prediction = self.chain_of_thought(
                     snp_data=snp_data,
                     trait_probabilities=trait_probs_json,
                     population_context=population_context,
+                    biological_facts=facts_str # Injecting the truth
                 )
 
-                # Extract reasoning — may be a JSON string or plain text
+                # Extract reasoning
                 raw_report = str(getattr(prediction, "phenotype_report", ""))
                 reasoning_chain = str(getattr(prediction, "reasoning", ""))
 
@@ -166,42 +187,38 @@ class PhenotypeAnalyst(dspy.Module):
                 )
                 ai_reasoning = f"AI reasoning unavailable: {exc}"
 
-        # ── Stage 3: Deterministic Phenotype Mapping (No GenAI) ──
-        # Replaces visual reconstruction with scientific trait prediction
+        # ── Stage 3: Merge results ──
+        # We enforce the strict traits over the probabilistic ones where they overlap
+        # But we keep the probabilistic structure for the API if needed, OR we replace it.
+        # The frontend expects 'traits' to be a dict of Key->Value string pairs for the visualization,
+        # but the API contract might expect the list of dicts from PhenotypePredictor.
+        # Let's check how the frontend consumes it. 
+        # SuspectVisualizer expects: phenotypeReport: { traits: Record<string, string>, trait_sources: ... }
         
-        # Determine top ancestry region for context-aware fallbacks
-        ancestry_probs = engine_result.get("ancestry_indicators", {})
+        # So we construct the final response using the strict data
+        prob_result["traits"] = strict_data["traits"] # This is Dict[str, str] from strict engine
+        prob_result["trait_sources"] = strict_data["trait_sources"]
+        prob_result["phenotype_reliability"] = strict_data["reliability_score"]
+        prob_result["phenotype_coherence"] = strict_data["coherence_score"]
+        prob_result["coherence_status"] = strict_data["coherence_status"]
+        prob_result["snps_analyzed"] = strict_data["snps_analyzed"]
         
-        # Run the new deterministic engine with Bayesian Sync
-        from app.agents.phenotype_engine import PhenotypeEngine
-        engine = PhenotypeEngine()
-        phenotype_data = engine.predict_phenotype(snp_map, ancestry_probabilities=ancestry_probs)
-
-        # Merge results
-        # We replace the old 'traits' list with our structured forensic traits
-        engine_result["traits"] = phenotype_data["traits"]
-        engine_result["forensic_traits"] = phenotype_data["traits"]
-        engine_result["phenotype_reliability"] = phenotype_data["reliability_score"]
-        engine_result["phenotype_coherence"] = phenotype_data["coherence_score"]
-        engine_result["coherence_status"] = phenotype_data["coherence_status"]
-        engine_result["snps_analyzed"] = phenotype_data["snps_analyzed"]
+        # Remove GenAI fields
+        prob_result["image_url"] = None
+        prob_result["genai_model_id"] = None
         
-        # Remove GenAI fields to prevent frontend confusion
-        engine_result["image_url"] = None
-        engine_result["genai_model_id"] = None
+        prob_result["ai_reasoning"] = ai_reasoning
+        prob_result["model_version"] = "VANTAGE-STR Phenotype v2.0 (Scientific)"
         
-        # ── Stage 4: Merge results ──
-        engine_result["ai_reasoning"] = ai_reasoning
-        engine_result["model_version"] = "VANTAGE-STR Phenotype v2.0"
-        
-        logger.info(f"[PHENOTYPE-API] Analysis complete for {profile_id}. Traits: {phenotype_data['traits']}")
-        return engine_result
+        logger.info(f"[PHENOTYPE-API] Analysis complete for {profile_id}. Facts: {facts_str}")
+        return prob_result
 
     def forward(
         self,
         snp_data: str,
         trait_probabilities: str,
         population_context: str,
+        biological_facts: str
     ) -> dspy.Prediction:
         """
         DSPy Module forward pass — required by the dspy.Module interface.
@@ -212,4 +229,5 @@ class PhenotypeAnalyst(dspy.Module):
             snp_data=snp_data,
             trait_probabilities=trait_probabilities,
             population_context=population_context,
+            biological_facts=biological_facts
         )

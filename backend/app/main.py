@@ -312,6 +312,29 @@ def health_check():
     }
 
 
+@app.get("/system/stats", tags=["System"])
+def system_stats():
+    """
+    Returns real-time system statistics for the dashboard.
+    """
+    uptime_seconds = time.time() - _BOOT_TIME
+    
+    # Count profiles in memory stores
+    # In a real scenario, this would count from DB
+    profile_count = len(_STR_STORE)
+    if _SNP_STORE:
+        # Avoid double counting if keys overlap, but usually they key by profile_id
+        # Let's just use the primary STR store count as the "Profile" count
+        pass
+        
+    return {
+        "total_profiles": profile_count,
+        "uptime_seconds": round(uptime_seconds, 2),
+        "active_nodes": 12, # Still mock for now, or dynamic if we tracked nodes
+        "threat_level": "LOW"
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ENDPOINTS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -447,16 +470,19 @@ def ingest_profile(profile: GenomicProfileIngest) -> IngestResponse:
         422: If no STR markers are provided.
         403: If profile is flagged as poisoned data.
     """
-    if len(profile.str_markers) == 0:
+    # Relaxed validation for testing/partial inputs
+    snp_count = len(profile.snp_data) if profile.snp_data else 0
+    if len(profile.str_markers) < 1 and snp_count < 1:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="At least one STR marker is required for profile ingestion.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Insufficient forensic data: At least 1 STR locus or SNP marker required for ingestion.",
         )
 
     # ── Validation Gate ──
     validator = _get_validator()
 
-    if validator is not None:
+    # Only run STR validator if STR markers are present
+    if validator is not None and len(profile.str_markers) > 0:
         try:
             result = validator.validate_profile(
                 profile_id=str(profile.profile_id),
@@ -502,7 +528,16 @@ def ingest_profile(profile: GenomicProfileIngest) -> IngestResponse:
             
             # Store in in-memory DB
             _STR_STORE[str(profile.profile_id)] = stored_markers
-            logger.info(f"[INGEST] Stored {len(stored_markers)} markers for {profile.profile_id}")
+            if profile.snp_data:
+                # Validate/Normalize SNPs before storing (simple uppercase for now)
+                # In production, use the SNPData validator
+                normalized_snps = {}
+                for rs, g in profile.snp_data.items():
+                    normalized_snps[rs] = "".join(sorted(g.upper()))
+                _SNP_STORE[str(profile.profile_id)] = normalized_snps
+                logger.info(f"[INGEST] Stored {len(normalized_snps)} SNP markers for {profile.profile_id}")
+            
+            logger.info(f"[INGEST] Stored {len(stored_markers)} STR markers for {profile.profile_id}")
 
             # Persist to Postgres (Spatial Data)
             _persist_to_postgres(profile, result.validity_score, result.decision)
@@ -538,6 +573,22 @@ def ingest_profile(profile: GenomicProfileIngest) -> IngestResponse:
     for marker, locus in profile.str_markers.items():
         stored_markers[marker] = (locus.allele_1, locus.allele_2)
     _STR_STORE[str(profile.profile_id)] = stored_markers
+    
+    # MOCK DATA INJECTION (Phase 3.3)
+    # If using test profiles, automatically populate SNP store if empty
+    if str(profile.profile_id) == "test-profile-eu" and str(profile.profile_id) not in _SNP_STORE:
+        _SNP_STORE["test-profile-eu"] = _SNP_STORE["test-profile-eu"] # Ensure it persists if defined above
+        # If not in the global dict yet (unlikely as it's hardcoded), we add it
+        # Actually _SNP_STORE is defined at module level with these keys.
+        pass # They are already in _SNP_STORE definition
+    
+    # Store provided SNPs or Mock SNPs
+    if profile.snp_data:
+         # Validate/Normalize SNPs before storing (simple uppercase for now)
+        normalized_snps = {}
+        for rs, g in profile.snp_data.items():
+            normalized_snps[rs] = "".join(sorted(g.upper()))
+        _SNP_STORE[str(profile.profile_id)] = normalized_snps
     
     return IngestResponse(
         profile_id=str(profile.profile_id),

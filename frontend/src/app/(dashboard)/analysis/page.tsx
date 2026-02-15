@@ -170,8 +170,20 @@ function ScanningSkeleton() {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+import { useRouter } from "next/navigation";
+
+// ... (existing imports)
+
 export default function AnalysisPage() {
     const { lastIngestedProfileId, lastIngestedNodeId, isValid, setLastIngested } = useIngestStore();
+    const router = useRouter();
+
+    // ── Guard: Redirect if no valid profile ──
+    useEffect(() => {
+        if (!isValid) {
+            router.replace("/nodes");
+        }
+    }, [isValid, router]);
 
     const [population, setPopulation] = useState("European");
     const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
@@ -575,6 +587,8 @@ export default function AnalysisPage() {
                                             coherenceScore={analysis?.coherence_score}
                                             txHash={analysis?.tx_hash}
                                             ancestryRegion={analysis?.geo_analysis_results?.[0]?.region}
+                                            isLoading={loading}
+                                            hideIfEmpty={true}
                                         />
                                     </div>
                                 </aside>

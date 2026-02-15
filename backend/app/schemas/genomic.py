@@ -79,6 +79,10 @@ class GenomicProfileIngest(BaseModel):
         min_length=1,
         description="Map of marker name → allele data. Keys should be CODIS/ESS marker names."
     )
+    snp_data: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Map of rsID → genotype (e.g., 'rs12913832': 'GG') for phenotype prediction."
+    )
     encrypted_metadata: Optional[bytes] = Field(default=None, description="Reserved for ZKP-encrypted auxiliary data")
     timestamp: int = Field(
         default_factory=lambda: int(datetime.utcnow().timestamp()),

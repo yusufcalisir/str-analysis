@@ -287,6 +287,19 @@ class ForensicValidator(dspy.Module):
         Returns:
             ValidationResult with composite score, anomalies, and decision.
         """
+        # ── Stage 0: Data Integrity Check ──
+        # Relaxed for testing: Require at least 1 marker if validating STRs.
+        if len(str_markers) < 1:
+            logger.warning(f"[VALIDATOR] Step 0: ABORTED - No STR markers ({len(str_markers)}) for {profile_id}")
+            return ValidationResult(
+                profile_id=profile_id,
+                validity_score=0.0,
+                rule_based_score=0.0,
+                decision="REJECTED",
+                anomaly_report="Step 0: ABORTED - No valid STR markers detected.",
+                anomalies=[],
+            )
+
         # ── Stage 1: Rule-based checks ──
         rule_score, anomalies = self.rule_validator.validate(str_markers, node_id)
 

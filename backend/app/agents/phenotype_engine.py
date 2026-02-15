@@ -6,106 +6,132 @@ class PhenotypeEngine:
     Focuses on HERC2, MC1R, SLC24A5, SLC45A2.
     """
     
-    # Major Forensic SNPs
-    SNPS = {
-        "rs12913832": {"gene": "HERC2", "trait": "Eye Color"},
-        "rs1805007": {"gene": "MC1R", "trait": "Red Hair / Fair Skin"},
-        "rs1426654": {"gene": "SLC24A5", "trait": "Skin Tone"},
-        "rs16891982": {"gene": "SLC45A2", "trait": "Skin Tone / Hair Color"}
+    # Major Forensic SNPs with Strict Mapping Definitions
+    SNP_KNOWLEDGE_BASE = {
+        "rs12913832": {
+            "gene": "HERC2",
+            "trait": "Eye Color",
+            "mappings": {
+                "AA": "Brown Eyes",
+                "AG": "Green/Hazel Eyes",
+                "GA": "Green/Hazel Eyes",
+                "GG": "Blue Eyes"
+            }
+        },
+        "rs1426654": {
+            "gene": "SLC24A5",
+            "trait": "Skin Tone",
+            "mappings": {
+                "AA": "Dark Skin",
+                "AG": "Intermediate Skin",
+                "GA": "Intermediate Skin",
+                "GG": "Light Skin"
+            }
+        },
+        "rs1805007": {
+            "gene": "MC1R",
+            "trait": "Hair Color",
+            "mappings": {
+                "TT": "Red Hair",
+                "CC": "Non-Red Hair",
+                "CT": "Carrier (Non-Red)",
+                "TC": "Carrier (Non-Red)"
+            }
+        },
+        "rs16891982": {
+            "gene": "SLC45A2",
+            "trait": "Hair Color",
+            "mappings": {
+                "GG": "Light Hair/Skin",
+                "CC": "Dark Hair/Skin",
+                "CG": "Intermediate",
+                "GC": "Intermediate"
+            }
+        }
     }
     
-    def predict_phenotype(self, snp_data: Dict[str, str], ancestry_probabilities: Dict[str, float] = None) -> Dict[str, Any]:
+    def predict_phenotype(self, snp_data: Dict[str, str], ancestry_context: Dict[str, float] = None) -> Dict[str, Any]:
         """
-        Predicts physical traits based on SNP alleles and ancestry context.
-        Applies Bayesian weighting if ancestry confidence is high (>70%).
+        Predicts physical traits based ONLY on strict SNP mappings.
+        Returns 'Insufficient Data' if key markers are missing.
         """
         traits = {
-            "Ocular Pigmentation": "Insufficient Data",
-            "Hair Morphology": "Insufficient Data",
-            "Dermal Classification": "Insufficient Data",
-            "Freckling Index": "Unknown"
+            "Ocular Pigmentation": {"value": "Insufficient Data", "source": []},
+            "Dermal Classification": {"value": "Insufficient Data", "source": []},
+            "Hair Morphology": {"value": "Insufficient Data", "source": []},
         }
         
-        # Determine dominant ancestry
-        top_region = "Unknown"
-        top_prob = 0.0
-        if ancestry_probabilities:
-            sorted_regions = sorted(
-                ancestry_probabilities.items(), 
-                key=lambda x: x[1], 
-                reverse=True
-            )
-            if sorted_regions:
-                top_region = sorted_regions[0][0]
-                top_prob = sorted_regions[0][1]
-
         # 1. Eye Color (HERC2 rs12913832)
-        herc2 = snp_data.get("rs12913832", "??")
-        if "AA" in herc2:
-            traits["Ocular Pigmentation"] = "Dark Brown / Black"
-        elif "AG" in herc2 or "GA" in herc2:
-            traits["Ocular Pigmentation"] = "Hazel / Green"
-        elif "GG" in herc2:
-             traits["Ocular Pigmentation"] = "Blue / Gray"
-        else:
-             # Bayesian Fallback
-             if top_prob > 0.7:
-                 if "Europe" in top_region:
-                     traits["Ocular Pigmentation"] = "Likely Light/Intermediate (Bayesian Prior)"
-                 elif "Asia" in top_region or "Africa" in top_region:
-                     traits["Ocular Pigmentation"] = "Likely Dark Brown (Bayesian Prior)"
-                 
+        # ==========================================
+        snp = "rs12913832"
+        if snp in snp_data:
+            genotype = snp_data[snp]
+            mapping = self.SNP_KNOWLEDGE_BASE[snp]["mappings"]
+            val = mapping.get(genotype, "Unknown Genotype")
+            traits["Ocular Pigmentation"] = {
+                "value": val, 
+                "source": [f"{snp} ({genotype})"]
+            }
+            
         # 2. Skin Tone (SLC24A5 rs1426654)
-        slc24 = snp_data.get("rs1426654", "??")
-        if "AA" in slc24:
-            traits["Dermal Classification"] = "Light / Pale (Type I-II)"
-        elif "AG" in slc24 or "GA" in slc24:
-            traits["Dermal Classification"] = "Intermediate / Tan (Type III-IV)"
-        elif "GG" in slc24:
-            traits["Dermal Classification"] = "Dark / Deep (Type V-VI)"
-        else:
-             if top_prob > 0.7:
-                 if "Europe" in top_region:
-                     traits["Dermal Classification"] = "Likely Type II-III (Bayesian Prior)"
-                 elif "Africa" in top_region:
-                     traits["Dermal Classification"] = "Likely Type V-VI (Bayesian Prior)"
-                 elif "Asia" in top_region:
-                     traits["Dermal Classification"] = "Likely Type III-IV (Bayesian Prior)"
+        # ==========================================
+        snp = "rs1426654"
+        if snp in snp_data:
+            genotype = snp_data[snp]
+            mapping = self.SNP_KNOWLEDGE_BASE[snp]["mappings"]
+            val = mapping.get(genotype, "Unknown Genotype")
+            traits["Dermal Classification"] = {
+                "value": val, 
+                "source": [f"{snp} ({genotype})"]
+            }
 
-        # 3. Hair Color/Type (Review MC1R & SLC45A2)
-        mc1r = snp_data.get("rs1805007", "??") # R151C
-        slc45 = snp_data.get("rs16891982", "??") # L374F
+        # 3. Hair Color (MC1R + SLC45A2)
+        # ==========================================
+        sources = []
+        hair_color_guesses = []
         
-        hair_color = "Brown/Black"
-        hair_texture = "Straight/Wavy"
+        # Check MC1R for Red Hair
+        if "rs1805007" in snp_data:
+            g = snp_data["rs1805007"]
+            m = self.SNP_KNOWLEDGE_BASE["rs1805007"]["mappings"].get(g, "Unknown")
+            sources.append(f"rs1805007 ({g})")
+            if "Red" in m and "Non-" not in m:
+                hair_color_guesses.append("Red")
         
-        if "TT" in mc1r: # Red hair variant
-             hair_color = "Red / Strawberry Blond"
-             traits["Freckling Index"] = "High Probability"
-        elif "CC" in slc45: # Darker
-             hair_color = "Dark Brown / Black"
-        elif "GG" in slc45: # Lighter
-             hair_color = "Blond / Light Brown"
-             
-        # Ancestry Adjustments for Hair
-        if "Africa" in top_region and top_prob > 0.6:
-            hair_texture = "Coiled / Curly"
-            if hair_color == "Brown/Black": hair_color = "Black"
-        elif "Asia" in top_region and top_prob > 0.6:
-            hair_texture = "Straight / Thick"
-            if hair_color == "Brown/Black": hair_color = "Black"
-             
-        traits["Hair Morphology"] = f"{hair_texture}, {hair_color}"
+        # Check SLC45A2 for Light/Dark
+        if "rs16891982" in snp_data:
+            g = snp_data["rs16891982"]
+            m = self.SNP_KNOWLEDGE_BASE["rs16891982"]["mappings"].get(g, "Unknown")
+            sources.append(f"rs16891982 ({g})")
+            if "Light" in m: hair_color_guesses.append("Blond/Light Brown")
+            elif "Dark" in m: hair_color_guesses.append("Dark Brown/Black")
+            
+        if hair_color_guesses:
+            # Simple priority: Red overrides others if present
+            final_hair = "Red" if "Red" in hair_color_guesses else hair_color_guesses[0]
+            traits["Hair Morphology"] = {
+                "value": final_hair, 
+                "source": sources
+            }
+
+        # Calculate Reliability
+        reliability = self._calculate_reliability(snp_data)
+
+        # Flatten for consistency but keep metadata
+        final_report = {}
+        trait_sources = {}
         
-        # Calculate Coherence Score
-        coherence_results = self._calculate_coherence(traits, top_region, top_prob)
-        
+        for k, v in traits.items():
+            final_report[k] = v["value"]
+            trait_sources[k] = v["source"]
+
         return {
-            "traits": traits,
-            "reliability_score": self._calculate_reliability(snp_data),
-            "coherence_score": coherence_results["score"],
-            "coherence_status": coherence_results["status"],
-            "snps_analyzed": [k for k in snp_data.keys() if k in self.SNPS]
+            "traits": final_report,
+            "trait_sources": trait_sources, # New field for UI transparency
+            "reliability_score": reliability,
+            "coherence_score": 1.0 if reliability > 0.5 else 0.0, # Placeholder
+            "coherence_status": "Verified via SNP" if reliability > 0.5 else "Low Data",
+            "snps_analyzed": [k for k in snp_data.keys() if k in self.SNP_KNOWLEDGE_BASE]
         }
 
     def _calculate_coherence(self, traits: Dict[str, str], region: str, prob: float) -> Dict[str, Any]:
@@ -145,6 +171,6 @@ class PhenotypeEngine:
         """
         Calculate reliability based on presence of key SNPs.
         """
-        present = sum(1 for rs in self.SNPS if rs in snp_data)
-        total = len(self.SNPS)
+        present = sum(1 for rs in self.SNP_KNOWLEDGE_BASE if rs in snp_data)
+        total = len(self.SNP_KNOWLEDGE_BASE)
         return round(present / total, 2)

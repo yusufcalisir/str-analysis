@@ -267,6 +267,7 @@ interface ForensicIdentityCardProps {
     hoveredRegion?: string | null;
     phenotypeReport?: {
         traits?: Record<string, string>;
+        trait_sources?: Record<string, string[]>;
         reliability_score?: number;
         coherence_score?: number;
         coherence_status?: string;
@@ -275,6 +276,8 @@ interface ForensicIdentityCardProps {
     coherenceScore?: number;
     txHash?: string;
     ancestryRegion?: string;
+    isLoading?: boolean;
+    hideIfEmpty?: boolean;
 }
 
 export default function SuspectVisualizer({
@@ -283,15 +286,23 @@ export default function SuspectVisualizer({
     phenotypeReport,
     coherenceScore,
     txHash,
-    ancestryRegion
+    ancestryRegion,
+    isLoading: externalLoading,
+    hideIfEmpty = false
 }: ForensicIdentityCardProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
     const data = phenotypeReport;
-    const isLoading = !data && !!profileId;
+    // Allow external control of loading state, fallback to heuristic if not provided
+    const isLoading = externalLoading ?? (!data && !!profileId);
 
     // Safety check specific to phenotype data availability
     const hasData = data && data.traits && Object.keys(data.traits).length > 0;
+
+    // If configured to hide when empty, and we are not loading and have no data, return null
+    if (hideIfEmpty && !isLoading && !hasData) {
+        return null;
+    }
 
     // Reliability formatting and color logic
     const reliabilityValue = coherenceScore ? (coherenceScore * 100).toFixed(1) : "0.0";
@@ -369,8 +380,8 @@ export default function SuspectVisualizer({
 
                 {hasData && (
                     <div className={`flex items-center gap-2 px-2 py-1 rounded-full border ${(coherenceScore || 0) > 0.85
-                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
-                            : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                        ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                        : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
                         }`}>
                         {(coherenceScore || 0) > 0.85 ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
                         <span className="font-mono text-[8px] font-bold tracking-tighter uppercase whitespace-nowrap">
@@ -391,11 +402,27 @@ export default function SuspectVisualizer({
                 />
 
                 {!hasData && !isLoading ? (
-                    <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-10 opacity-70">
-                        <AlertTriangle className="w-8 h-8 text-red-500/80" />
-                        <p className="font-mono text-[9px] text-red-500 tracking-[0.2em] uppercase font-bold">
-                            INSUFFICIENT GENETIC MARKERS
-                        </p>
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-6 py-10 opacity-80">
+                        {/* Empty State Illustration */}
+                        <div className="relative w-32 h-32 opacity-50">
+                            <div className="absolute inset-0 border border-zinc-800 rounded-full animate-pulse" />
+                            <div className="absolute inset-4 border border-dashed border-zinc-700 rounded-full animate-[spin_10s_linear_infinite]" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <Dna className="w-12 h-12 text-zinc-700" />
+                            </div>
+                            {/* Cross lines */}
+                            <div className="absolute top-1/2 left-0 w-full h-[1px] bg-zinc-800/50" />
+                            <div className="absolute left-1/2 top-0 h-full w-[1px] bg-zinc-800/50" />
+                        </div>
+
+                        <div className="text-center space-y-2 max-w-[200px]">
+                            <p className="font-mono text-[10px] text-zinc-400 tracking-[0.2em] uppercase font-bold">
+                                AWAITING DNA SEQUENCE
+                            </p>
+                            <p className="font-mono text-[8px] text-zinc-600 leading-relaxed">
+                                Upload a valid .fsa file or manually enter at least 13 STR loci to generate a forensic profile.
+                            </p>
+                        </div>
                     </div>
                 ) : !hasData && isLoading ? (
                     <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-10 opacity-60">
@@ -428,12 +455,14 @@ export default function SuspectVisualizer({
                         <div className="grid grid-cols-1 gap-3">
                             {displayTraits.map((trait) => {
                                 const highlight = isTraitRelevant(trait.key, trait.value);
+                                const sources = data?.trait_sources?.[trait.key] || [];
+
                                 return (
                                     <div
                                         key={trait.label}
                                         className={`relative group p-3 rounded bg-zinc-900/40 border transition-all duration-300 ${highlight
-                                                ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
-                                                : "border-zinc-800 hover:border-zinc-700"
+                                            ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                                            : "border-zinc-800 hover:border-zinc-700"
                                             }`}
                                     >
                                         <div className="flex items-center justify-between mb-2">
@@ -447,8 +476,16 @@ export default function SuspectVisualizer({
                                                 </div>
                                             )}
                                         </div>
-                                        <div className={`font-mono text-sm ${highlight ? 'text-white font-bold' : 'text-zinc-300'}`}>
-                                            {trait.value}
+                                        <div className="flex justify-between items-end">
+                                            <div className={`font-mono text-sm ${highlight ? 'text-white font-bold' : 'text-zinc-300'}`}>
+                                                {trait.value}
+                                            </div>
+                                            {/* Source Tag */}
+                                            {sources.length > 0 && (
+                                                <div className="font-mono text-[8px] text-zinc-600 text-right">
+                                                    Ref: {sources.map(s => s.split(' ')[0]).join(', ')}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );

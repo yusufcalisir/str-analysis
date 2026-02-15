@@ -139,6 +139,14 @@ class PhenotypeAnalysisSignature(dspy.Signature):
             "and any available population frequency data for the submitted SNPs."
         )
     )
+    biological_facts: str = dspy.InputField(
+        desc=(
+            "Strictly verified phenotype traits derived from deterministic SNP mappings. "
+            "Example: 'Ocular Pigmentation: Blue Eyes (Source: rs12913832 GG)'. "
+            "You MUST align your reasoning with these facts. Do not halllucinate or deviate "
+            "from these biologically confirmed traits."
+        )
+    )
 
     # ── Outputs ──
     phenotype_report: str = dspy.OutputField(

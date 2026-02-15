@@ -17,6 +17,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { useIngestStore } from "@/store/ingestStore";
+
 /* ── Navigation Items ── */
 const NAV_ITEMS = [
     { id: "nodes", label: "Nodes", href: "/nodes", icon: Network },
@@ -37,6 +39,15 @@ export default function DashboardLayout({
     const pathname = usePathname();
     const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+    // Check ingest state
+    const isValid = useIngestStore((s) => s.isValid);
+
+    // Filter items
+    const visibleNavItems = NAV_ITEMS.filter(item => {
+        if (item.id === "analysis") return isValid;
+        return true;
+    });
 
     return (
         <div className="flex min-h-screen lg:h-screen lg:overflow-hidden bg-tactical-bg text-tactical-text">
@@ -67,7 +78,7 @@ export default function DashboardLayout({
                                 </button>
                             </div>
                             <nav className="p-4 space-y-2">
-                                {NAV_ITEMS.map((item) => {
+                                {visibleNavItems.map((item) => {
                                     const Icon = item.icon;
                                     const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                                     return (
@@ -118,7 +129,7 @@ export default function DashboardLayout({
 
                 {/* Nav Links */}
                 <nav className="flex-1 space-y-1 px-2 py-4">
-                    {NAV_ITEMS.map((item) => {
+                    {visibleNavItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
                         return (

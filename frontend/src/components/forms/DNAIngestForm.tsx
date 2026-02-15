@@ -4,6 +4,13 @@ import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, Send, Dna, AlertTriangle, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
+
 
 import { generateUUID } from "@/lib/utils";
 import { useIngestStore } from "@/store/ingestStore";
@@ -84,6 +91,21 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
         []
     );
 
+
+
+    // ── SNP State ──
+    const [showSnps, setShowSnps] = useState(false);
+    const [snpRows, setSnpRows] = useState<{ id: string; rsid: string; genotype: string }[]>([
+        { id: "snp-1", rsid: "", genotype: "" },
+        { id: "snp-2", rsid: "", genotype: "" },
+    ]);
+
+    const addSnpRow = () => setSnpRows(prev => [...prev, { id: generateUUID(), rsid: "", genotype: "" }]);
+    const removeSnpRow = (id: string) => setSnpRows(prev => prev.filter(r => r.id !== id));
+    const updateSnpRow = (id: string, field: "rsid" | "genotype", value: string) => {
+        setSnpRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setSubmitting(true);
@@ -100,6 +122,14 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
                 allele_1: parseFloat(row.allele1),
                 allele_2: parseFloat(row.allele2),
             };
+        }
+
+        // Build SNP payload
+        const snpPayload: Record<string, string> = {};
+        for (const row of snpRows) {
+            if (row.rsid && row.genotype) {
+                snpPayload[row.rsid] = row.genotype;
+            }
         }
 
         const originNode = nodeId || "LOCAL-DEBUG";
@@ -121,7 +151,8 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
                     qual_metrics: {
                         avg_peak_height: 1200, // Default good quality
                         stutter_ratio: 0.05
-                    }
+                    },
+                    snp_data: Object.keys(snpPayload).length > 0 ? snpPayload : undefined,
                 })
             });
 
@@ -177,6 +208,10 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
     }, [redirectCountdown, router]);
 
     const filledCount = rows.filter((r) => r.marker && r.allele1 && r.allele2).length;
+    const filledSnpCount = snpRows.filter((r) => r.rsid && r.genotype).length;
+
+    // Relaxed validation: At least 1 valid STR OR 1 valid SNP
+    const isFormValid = filledCount >= 1 || filledSnpCount >= 1;
 
     return (
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -189,7 +224,7 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
                     </h2>
                 </div>
                 <span className="font-data text-[10px] text-tactical-text-dim">
-                    {filledCount} / {rows.length} loci defined
+                    {filledCount} STRs / {filledSnpCount} SNPs
                 </span>
             </div>
 
@@ -318,57 +353,206 @@ export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAInges
                 </button>
             </div>
 
-            {/* ── Submit ── */}
-            <button
-                type="submit"
-                disabled={submitting || filledCount === 0}
-                className="
-          flex w-full items-center justify-center gap-2 rounded-md
-          bg-tactical-primary py-2.5
-          font-data text-xs font-semibold tracking-widest text-tactical-bg uppercase
-          transition-all duration-200
-          hover:bg-tactical-primary-dim hover:glow-primary-strong
-          disabled:cursor-not-allowed disabled:opacity-40
-        "
-            >
-                {submitting ? (
-                    <>
-                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-tactical-bg border-t-transparent" />
-                        Validating...
-                    </>
-                ) : (
-                    <>
-                        <Send className="h-3.5 w-3.5" />
-                        Ingest Profile
-                    </>
+
+
+            {/* ── Advanced: Phenotype SNPs ── */}
+            <div className="pt-2 border-t border-tactical-border/50">
+                <button
+                    type="button"
+                    onClick={() => setShowSnps(!showSnps)}
+                    className="flex items-center gap-2 text-[10px] font-data font-bold tracking-widest text-tactical-text-dim uppercase hover:text-tactical-primary transition-colors"
+                >
+                    <div className={`transition-transform duration-200 ${showSnps ? "rotate-90" : ""}`}>▶</div>
+                    Advanced: Phenotype Markers (SNPs)
+                </button>
+
+                {showSnps && (
+                    <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        className="space-y-3 pt-3"
+                    >
+                        <div className="grid grid-cols-[1fr_1fr_2rem] gap-2 px-1">
+                            <span className="font-data text-[9px] font-semibold tracking-widest text-tactical-text-dim uppercase">
+                                rsID
+                            </span>
+                            <span className="font-data text-[9px] font-semibold tracking-widest text-tactical-text-dim uppercase">
+                                Genotype
+                            </span>
+                            <span />
+                        </div>
+
+                        {snpRows.map((row) => (
+                            <div key={row.id} className="grid grid-cols-[1fr_1fr_2rem] items-center gap-2">
+                                {/* rsID Input */}
+                                <input
+                                    type="text"
+                                    list="common-rsids"
+                                    value={row.rsid}
+                                    onChange={(e) => updateSnpRow(row.id, "rsid", e.target.value)}
+                                    placeholder="rs12913832"
+                                    className="w-full rounded-md border border-tactical-border bg-tactical-bg px-3 py-2 font-data text-xs text-tactical-text placeholder:text-tactical-text-dim outline-none transition-colors focus:border-tactical-primary/40 focus:ring-1 focus:ring-tactical-primary/20"
+                                />
+                                <datalist id="common-rsids">
+                                    {/* Eye Color */}
+                                    <option value="rs12913832" label="HERC2 (Blue/Brown Eye)" />
+                                    <option value="rs16891982" label="SLC45A2 (Dark/Light)" />
+                                    <option value="rs1800407" label="OCA2 (Green/Hazel)" />
+                                    <option value="rs12896399" label="SLC24A4" />
+                                    <option value="rs12203592" label="IRF4" />
+                                    <option value="rs1393350" label="TYR" />
+
+                                    {/* Hair Color */}
+                                    <option value="rs1805007" label="MC1R (Red Hair)" />
+                                    <option value="rs1805008" label="MC1R (Red Hair)" />
+                                    <option value="rs1805009" label="MC1R (Red Hair)" />
+                                    <option value="rs11547464" label="MC1R (Red Hair)" />
+                                    <option value="rs1805006" label="MC1R (Red Hair)" />
+
+                                    {/* Skin Color */}
+                                    <option value="rs1426654" label="SLC24A5 (Light Skin)" />
+                                    <option value="rs1042602" label="TYR (Skin)" />
+                                    <option value="rs6119471" label="ASIP (Dark Skin)" />
+                                </datalist>
+
+                                {/* Genotype Input */}
+                                <input
+                                    type="text"
+                                    list="common-genotypes"
+                                    maxLength={2}
+                                    value={row.genotype}
+                                    onChange={(e) => updateSnpRow(row.id, "genotype", e.target.value.toUpperCase())}
+                                    placeholder="GG"
+                                    className="w-full rounded-md border border-tactical-border bg-tactical-bg px-3 py-2 font-data text-xs text-tactical-text placeholder:text-tactical-text-dim outline-none transition-colors text-center uppercase focus:border-tactical-primary/40 focus:ring-1 focus:ring-tactical-primary/20"
+                                />
+                                <datalist id="common-genotypes">
+                                    <option value="AA" />
+                                    <option value="AC" />
+                                    <option value="AG" />
+                                    <option value="AT" />
+                                    <option value="CC" />
+                                    <option value="CG" />
+                                    <option value="CT" />
+                                    <option value="GG" />
+                                    <option value="GT" />
+                                    <option value="TT" />
+                                </datalist>
+
+                                {/* Remove Row */}
+                                <button
+                                    type="button"
+                                    onClick={() => removeSnpRow(row.id)}
+                                    className="flex h-8 w-8 items-center justify-center rounded-md text-tactical-text-dim transition-colors hover:bg-tactical-danger/10 hover:text-tactical-danger"
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        ))}
+
+                        <button
+                            type="button"
+                            onClick={addSnpRow}
+                            className="flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-tactical-border py-2 font-data text-[10px] font-medium tracking-wider text-tactical-text-dim transition-colors uppercase hover:border-tactical-primary/30 hover:text-tactical-primary"
+                        >
+                            <Plus className="h-3 w-3" />
+                            Add SNP Marker
+                        </button>
+                    </motion.div>
                 )}
-            </button>
+            </div>
+
+            {/* ── Submit ── */}
+            {/* ── Submit ── */}
+            <div className="flex w-full justify-center pt-4">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <button
+                                type="submit"
+                                disabled={submitting || !isFormValid}
+                                className="
+                                flex items-center justify-center gap-2 rounded-md
+                                bg-tactical-primary px-8 py-2.5 min-w-[140px] shadow-[0_0_15px_rgba(16,185,129,0.15)]
+                                font-data text-xs font-bold tracking-[0.15em] text-tactical-bg uppercase whitespace-nowrap
+                                transition-all duration-300
+                                hover:bg-tactical-primary-dim hover:shadow-[0_0_20px_rgba(16,185,129,0.4)]
+                                hover:scale-[1.02] active:scale-[0.98]
+                                disabled:cursor-not-allowed disabled:opacity-40 disabled:bg-tactical-surface-elevated disabled:text-tactical-text-dim disabled:shadow-none disabled:hover:scale-100
+                                "
+                            >
+                                {submitting ? (
+                                    <>
+                                        {/* DNA Helix Animation */}
+                                        <div className="flex items-center gap-[2px] h-3">
+                                            {[0, 1, 2, 3, 4].map((i) => (
+                                                <motion.div
+                                                    key={i}
+                                                    className="w-[2px] bg-tactical-bg rounded-full"
+                                                    animate={{
+                                                        height: ["4px", "12px", "4px"],
+                                                        opacity: [0.5, 1, 0.5],
+                                                        backgroundColor: ["#09090b", "#ffffff", "#09090b"]
+                                                    }}
+                                                    transition={{
+                                                        duration: 0.8,
+                                                        repeat: Infinity,
+                                                        ease: "easeInOut",
+                                                        delay: i * 0.1
+                                                    }}
+                                                />
+                                            ))}
+                                        </div>
+                                        <span className="animate-pulse">Analyzing Sequence...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Send className="h-3.5 w-3.5" />
+                                        Ingest Profile
+                                    </>
+                                )}
+                            </button>
+                        </TooltipTrigger>
+                        {!isFormValid && (
+                            <TooltipContent side="top" className="border-tactical-border bg-tactical-surface-elevated text-tactical-text shadow-xl">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle className="h-3 w-3 text-amber-500" />
+                                    <p className="font-data text-[10px] font-bold tracking-wider uppercase text-amber-500">
+                                        At least 1 valid marker (STR or SNP) required
+                                    </p>
+                                </div>
+                            </TooltipContent>
+                        )}
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
 
             {/* ── Result feedback ── */}
-            {result && (
-                <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="space-y-2"
-                >
-                    <div className="flex items-start gap-2 rounded-md border border-tactical-primary/20 bg-tactical-primary/5 px-3 py-2.5">
-                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tactical-primary" />
-                        <span className="font-data text-[11px] leading-relaxed text-tactical-primary">
-                            {result}
-                        </span>
-                    </div>
-
-                    {/* Redirect indicator */}
-                    {redirectCountdown !== null && redirectCountdown > 0 && (
-                        <div className="flex items-center justify-center gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
-                            <ArrowRight className="h-3 w-3 text-cyan-400 animate-pulse" />
-                            <span className="font-data text-[10px] text-cyan-400">
-                                Redirecting to Analysis in {redirectCountdown}s...
+            {
+                result && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 4 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="space-y-2"
+                    >
+                        <div className="flex items-start gap-2 rounded-md border border-tactical-primary/20 bg-tactical-primary/5 px-3 py-2.5">
+                            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-tactical-primary" />
+                            <span className="font-data text-[11px] leading-relaxed text-tactical-primary">
+                                {result}
                             </span>
                         </div>
-                    )}
-                </motion.div>
-            )}
+
+                        {/* Redirect indicator */}
+                        {redirectCountdown !== null && redirectCountdown > 0 && (
+                            <div className="flex items-center justify-center gap-2 rounded-md border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                                <ArrowRight className="h-3 w-3 text-cyan-400 animate-pulse" />
+                                <span className="font-data text-[10px] text-cyan-400">
+                                    Redirecting to Analysis in {redirectCountdown}s...
+                                </span>
+                            </div>
+                        )}
+                    </motion.div>
+                )
+            }
         </form>
     );
 }
