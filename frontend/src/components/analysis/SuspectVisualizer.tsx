@@ -36,6 +36,8 @@ interface ReconstructionData {
     trait_summary?: TraitSummary;
     positive_prompt?: string;
     negative_prompt?: string;
+    coherence_score?: number;
+    coherence_status?: string;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -260,316 +262,224 @@ function GenerationLog({ isGenerating }: { isGenerating: boolean }) {
 // MAIN COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export default function SuspectVisualizer({ profileId }: { profileId?: string }) {
-    const [data, setData] = useState<ReconstructionData | null>(null);
-    const [isGenerating, setIsGenerating] = useState(false);
-    const [overlayActive, setOverlayActive] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [isImageLoading, setIsImageLoading] = useState(false);
-    const [imageLoadError, setImageLoadError] = useState(false);
+interface ForensicIdentityCardProps {
+    profileId?: string;
+    hoveredRegion?: string | null;
+    phenotypeReport?: {
+        traits?: Record<string, string>;
+        reliability_score?: number;
+        coherence_score?: number;
+        coherence_status?: string;
+        snps_analyzed?: string[];
+    } | null;
+    coherenceScore?: number;
+    txHash?: string;
+    ancestryRegion?: string;
+}
+
+export default function SuspectVisualizer({
+    profileId,
+    hoveredRegion,
+    phenotypeReport,
+    coherenceScore,
+    txHash,
+    ancestryRegion
+}: ForensicIdentityCardProps) {
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const handleGenerate = useCallback(async () => {
-        setIsGenerating(true);
-        setError(null);
+    const data = phenotypeReport;
+    const isLoading = !data && !!profileId;
 
-        const targetProfileId = profileId || "test-profile-eu";
+    // Safety check specific to phenotype data availability
+    const hasData = data && data.traits && Object.keys(data.traits).length > 0;
 
-        try {
-            // Attempt real API call to the phenotype endpoint (which now includes GenAI)
-            const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-            const res = await fetch(
-                `${API_BASE}/profile/phenotype/${targetProfileId}`
-            );
-            if (res.ok) {
-                const result = await res.json();
+    // Reliability formatting and color logic
+    const reliabilityValue = coherenceScore ? (coherenceScore * 100).toFixed(1) : "0.0";
+    const reliabilityColor = coherenceScore
+        ? coherenceScore > 0.8 ? "text-emerald-500"
+            : coherenceScore > 0.6 ? "text-amber-500"
+                : "text-red-500"
+        : "text-zinc-500";
+    const reliabilityLabel = coherenceScore ? `${reliabilityValue}%` : "CALCULATING...";
 
-                // Map PhenotypeReport to ReconstructionData
-                const mappedData: ReconstructionData = {
-                    profile_id: result.profile_id,
-                    image_url: result.image_url,
-                    seed: result.seed,
-                    prompt_hash: "N/A", // Not in PhenotypeReport yet
-                    generation_time_ms: 0, // Not in PhenotypeReport yet
-                    model_id: result.genai_model_id || "mock-sdxl-dev",
-                    trait_summary: result.trait_summary || {},
-                    positive_prompt: result.positive_prompt || "",
-                    negative_prompt: result.negative_prompt || "",
-                };
+    // Helper: Determine if trait matches hovered region
+    const isTraitRelevant = (trait: string, value: string) => {
+        if (!hoveredRegion) return false;
+        const region = hoveredRegion.toLowerCase();
+        const val = value.toLowerCase();
 
-                // Simulate processing time for UX if it was too fast (cached)
-                await new Promise((r) => setTimeout(r, 1000));
+        if (region.includes("africa")) return (val.includes("dark") || val.includes("black") || val.includes("curly"));
+        if (region.includes("europe")) return (val.includes("blue") || val.includes("light") || val.includes("blond"));
+        if (region.includes("asia")) return (val.includes("dark") || val.includes("straight"));
+        return false;
+    };
 
-                if (mappedData.image_url) {
-                    setIsImageLoading(true);
-                    setImageLoadError(false);
-                    console.log(`[UI_RENDER] Attempting to load suspect image from: ${mappedData.image_url}`);
-                }
-
-                setData(mappedData);
-            } else {
-                console.warn("API Error - Visualizer awaiting valid profile.");
-                setData(null);
-            }
-        } catch (e) {
-            console.error("Fetch Error:", e);
-            setError("BACKEND CONNECTION FAILED");
-            setData(null);
-        } finally {
-            setIsGenerating(false);
+    // Mapping backend traits to requested display labels
+    const displayTraits = [
+        {
+            label: "BIOLOGICAL_EYE_COLOR",
+            value: data?.traits?.["Ocular Pigmentation"] || "Unknown",
+            key: "Ocular Pigmentation"
+        },
+        {
+            label: "DERMAL_PIGMENTATION",
+            value: data?.traits?.["Dermal Classification"] || "Unknown",
+            key: "Dermal Classification"
+        },
+        {
+            label: "HAIR_STRUCTURE",
+            value: data?.traits?.["Hair Morphology"] || "Unknown",
+            key: "Hair Morphology"
+        },
+        {
+            label: "GENETIC_ANCESTRY_KEY",
+            value: ancestryRegion || "Unknown",
+            key: "Ancestry"
         }
-    }, [profileId]);
-
-    // Auto-generate on mount or profileId change
-    useEffect(() => {
-        handleGenerate();
-    }, [handleGenerate]);
-
-    const handleDownloadPoster = useCallback(async () => {
-        if (!data || !containerRef.current) return;
-
-        try {
-            const dataUrl = await toPng(containerRef.current, {
-                cacheBust: true,
-                backgroundColor: "#0A0A0B", // Match --color-tactical-bg
-                pixelRatio: 2,
-                style: {
-                    borderRadius: "0", // Clean capture
-                },
-                filter: (node) => {
-                    // Exclude buttons and elements usually hidden during capture
-                    if (node.tagName === 'BUTTON') return false;
-                    if (node.classList && node.classList.contains('capture-hide')) return false;
-                    return true;
-                }
-            });
-
-            const a = document.createElement("a");
-            a.href = dataUrl;
-            a.download = `VANTAGE_FORENSIC_POSTER_${data.profile_id}.png`;
-            a.click();
-        } catch (err) {
-            console.error("Poster generation failed:", err);
-            // No UI restoration needed since we didn't mutate the DOM
-        }
-    }, [data]);
+    ];
 
     return (
         <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.4, delay: 0.2 }}
-            className="rounded-lg border border-tactical-border bg-tactical-surface overflow-hidden"
+            className="rounded-lg border border-tactical-border bg-slate-950 overflow-hidden h-fit flex flex-col font-mono shadow-lg relative"
             ref={containerRef}
         >
+            {/* ── Scanning Overlay Animation ── */}
+            {isLoading && (
+                <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
+                    <motion.div
+                        className="w-full h-[2px] bg-cyan-400/80 shadow-[0_0_15px_rgba(34,211,238,0.8)]"
+                        animate={{ top: ["0%", "100%", "0%"] }}
+                        transition={{ duration: 3, ease: "linear", repeat: Infinity }}
+                    />
+                    <div className="absolute inset-0 bg-cyan-500/5 mix-blend-overlay" />
+                </div>
+            )}
+
             {/* ── Header ── */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-tactical-border">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/50 shrink-0 bg-[#070709] relative z-10">
                 <div className="flex items-center gap-2">
-                    <ScanFace className="w-4 h-4 text-tactical-primary" />
-                    <h3 className="font-mono text-[10px] font-bold tracking-[0.2em] text-tactical-text uppercase">
-                        Suspect_Visual_Reconstruction
+                    <User className="w-4 h-4 text-emerald-500" />
+                    <h3 className="font-mono text-[10px] font-bold tracking-[0.2em] text-emerald-500 uppercase">
+                        Forensic_Identity_Panel
                     </h3>
                 </div>
-                <div className="flex items-center gap-2">
-                    {data && (
-                        <button
-                            onClick={() => setOverlayActive(!overlayActive)}
-                            className="font-mono text-[8px] text-zinc-600 hover:text-tactical-primary transition-colors px-2 py-1 rounded border border-tactical-border/50 hover:border-tactical-primary/30"
-                        >
-                            {overlayActive ? "OVERLAY:ON" : "OVERLAY:OFF"}
-                        </button>
-                    )}
-                    <button
-                        onClick={handleGenerate}
-                        disabled={isGenerating}
-                        className="font-mono text-[8px] text-zinc-600 hover:text-tactical-primary transition-colors px-2 py-1 rounded border border-tactical-border/50 hover:border-tactical-primary/30 disabled:opacity-30"
-                    >
-                        <RefreshCw className={`w-3 h-3 ${isGenerating ? "animate-spin" : ""}`} />
-                    </button>
-                </div>
-            </div>
 
-            {/* ── Image Panel ── */}
-            <div className="relative aspect-[3/4] bg-[#070709] overflow-hidden">
-                {/* Background gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/60 z-10" />
-
-                {/* Forensic placeholder or real image */}
-                {/* Forensic placeholder or real image */}
-                {data?.image_url && !imageLoadError ? (
-                    <>
-                        <img
-                            src={data.image_url}
-                            alt="Forensic facial reconstruction"
-                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-700 ${isImageLoading ? "opacity-0" : "opacity-100"
-                                }`}
-                            onLoad={() => setIsImageLoading(false)}
-                            onError={() => {
-                                console.error("[UI_RENDER] Image failed to load:", data.image_url);
-                                setImageLoadError(true);
-                                setIsImageLoading(false);
-                            }}
-                        />
-                        {isImageLoading && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/80 z-20">
-                                <div className="text-cyan-500 font-mono text-xs animate-pulse tracking-widest">LOADING VISUAL...</div>
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <div className="relative w-full h-full flex items-center justify-center">
-                        {!data ? (
-                            <div className="text-center space-y-2 opacity-40">
-                                <ScanFace className="w-12 h-12 text-zinc-600 mx-auto" />
-                                <p className="font-mono text-[9px] text-zinc-500 uppercase tracking-widest">
-                                    SYSTEM STANDBY<br />AWAITING DNA INPUT
-                                </p>
-                            </div>
-                        ) : (
-                            <>
-                                <ForensicPlaceholder />
-                                {imageLoadError && (
-                                    <div className="absolute bottom-4 left-0 right-0 text-center">
-                                        <span className="bg-red-900/80 text-white text-[10px] px-2 py-1 rounded border border-red-500/50">
-                                            IMAGE LOAD FAILED - CHECK URL
-                                        </span>
-                                    </div>
-                                )}
-                            </>
-                        )}
+                {hasData && (
+                    <div className={`flex items-center gap-2 px-2 py-1 rounded-full border ${(coherenceScore || 0) > 0.85
+                            ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                            : 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                        }`}>
+                        {(coherenceScore || 0) > 0.85 ? <CheckCircle2 className="w-3 h-3" /> : <AlertTriangle className="w-3 h-3" />}
+                        <span className="font-mono text-[8px] font-bold tracking-tighter uppercase whitespace-nowrap">
+                            {(coherenceScore || 0) > 0.85 ? "VERIFIED" : "LOW SYNC"}
+                        </span>
                     </div>
                 )}
-
-                {/* Overlay grid */}
-                <ForensicOverlay active={overlayActive} />
-
-                {/* Scanning beam */}
-                <ScanBeam active={isGenerating} />
-
-                {/* Bottom status bar */}
-                <div className="absolute bottom-0 left-0 right-0 z-20 px-3 py-2 bg-gradient-to-t from-black/90 to-transparent">
-                    <div className="flex items-center justify-between">
-                        <span className="font-mono text-[8px] text-zinc-500">
-                            {data ? `SEED:${data.seed} • ${data.prompt_hash}` : "NO_DATA"}
-                        </span>
-                        {data && (
-                            <span className="font-mono text-[8px] text-tactical-primary">
-                                {data.generation_time_ms}ms
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Generating overlay */}
-                <AnimatePresence>
-                    {isGenerating && (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="absolute inset-0 z-30 flex items-center justify-center bg-black/70 backdrop-blur-sm"
-                        >
-                            <div className="text-center space-y-3">
-                                <motion.div
-                                    animate={{ rotate: 360 }}
-                                    transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                                >
-                                    <ScanFace className="w-8 h-8 text-tactical-primary mx-auto" />
-                                </motion.div>
-                                <p className="font-mono text-[9px] text-tactical-primary tracking-[0.3em] uppercase">
-                                    Reconstructing
-                                </p>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
             </div>
 
-            {/* ── Trait Panel ── */}
-            <div className="px-4 py-3 space-y-3 border-t border-tactical-border">
-                {/* Generation Log */}
-                <GenerationLog isGenerating={isGenerating} />
+            {/* ── Content Area ── */}
+            <div className="flex-1 p-4 bg-slate-950 relative overflow-hidden flex flex-col">
+                <div
+                    className="absolute inset-0 opacity-10 pointer-events-none"
+                    style={{
+                        backgroundImage: `linear-gradient(#10B981 1px, transparent 1px), linear-gradient(90deg, #10B981 1px, transparent 1px)`,
+                        backgroundSize: '30px 30px',
+                    }}
+                />
 
-                {/* Trait Summary */}
-                {data && (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ delay: 0.3 }}
-                        className="space-y-1.5"
-                    >
-                        <div className="flex items-center gap-1.5 mb-2">
-                            <div className="w-0.5 h-3 rounded-full bg-tactical-primary" />
-                            <span className="font-mono text-[9px] font-bold text-tactical-text tracking-[0.15em] uppercase">
-                                Predicted_Traits
-                            </span>
+                {!hasData && !isLoading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-10 opacity-70">
+                        <AlertTriangle className="w-8 h-8 text-red-500/80" />
+                        <p className="font-mono text-[9px] text-red-500 tracking-[0.2em] uppercase font-bold">
+                            INSUFFICIENT GENETIC MARKERS
+                        </p>
+                    </div>
+                ) : !hasData && isLoading ? (
+                    <div className="flex-1 flex flex-col items-center justify-center space-y-3 py-10 opacity-60">
+                        <div className="space-y-1 text-center">
+                            <p className="font-mono text-[10px] text-cyan-400 tracking-[0.2em] uppercase animate-pulse">
+                                ANALYZING PHENOTYPE...
+                            </p>
+                            <p className="font-mono text-[8px] text-zinc-500">
+                                Constructing Forensic Profile
+                            </p>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col gap-5 relative z-10 animate-in fade-in duration-500">
+                        {/* Summary Header */}
+                        <div className="grid grid-cols-2 gap-4 pb-4 border-b border-zinc-900">
+                            <div>
+                                <p className="font-mono text-[7px] text-zinc-500 uppercase tracking-widest mb-1">Subject_Reference</p>
+                                <p className="font-mono text-xs font-bold text-white truncate">{profileId}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="font-mono text-[7px] text-zinc-500 uppercase tracking-widest mb-1">Reliability_Index</p>
+                                <p className={`font-mono text-xs font-bold ${reliabilityColor}`}>
+                                    {reliabilityLabel}
+                                </p>
+                            </div>
                         </div>
 
-                        {Object.entries(data.trait_summary || {}).map(([trait, value], idx) => {
-                            const Icon = TRAIT_ICONS[trait] || User;
-                            return (
-                                <motion.div
-                                    key={trait}
-                                    initial={{ opacity: 0, x: -6 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: 0.4 + idx * 0.08 }}
-                                    className="flex items-center justify-between py-1 px-2 rounded bg-tactical-surface-elevated/50 group hover:bg-tactical-primary/5 transition-colors"
+                        {/* High-Fidelity Grid */}
+                        <div className="grid grid-cols-1 gap-3">
+                            {displayTraits.map((trait) => {
+                                const highlight = isTraitRelevant(trait.key, trait.value);
+                                return (
+                                    <div
+                                        key={trait.label}
+                                        className={`relative group p-3 rounded bg-zinc-900/40 border transition-all duration-300 ${highlight
+                                                ? "border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_10px_rgba(16,185,129,0.1)]"
+                                                : "border-zinc-800 hover:border-zinc-700"
+                                            }`}
+                                    >
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className={`font-mono text-[8px] uppercase tracking-[0.15em] ${highlight ? 'text-emerald-400 font-bold' : 'text-zinc-500'}`}>
+                                                {trait.label}
+                                            </span>
+                                            {highlight && (
+                                                <div className="flex items-center gap-1">
+                                                    <div className="w-1 h-1 bg-emerald-500 animate-pulse" />
+                                                    <span className="font-mono text-[7px] text-emerald-500 max-[280px]:hidden">MATCH</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className={`font-mono text-sm ${highlight ? 'text-white font-bold' : 'text-zinc-300'}`}>
+                                            {trait.value}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Footer Section with On-Chain Proof Button */}
+                        <div className="mt-auto pt-4 border-t border-zinc-900 flex flex-col gap-3">
+                            {txHash ? (
+                                <a
+                                    href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="group flex items-center justify-center gap-2 w-full bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 hover:border-emerald-500/50 text-emerald-400 py-2.5 rounded transition-all active:scale-[0.98]"
                                 >
-                                    <div className="flex items-center gap-2">
-                                        <Icon className="w-3 h-3 text-zinc-600 group-hover:text-tactical-primary transition-colors" />
-                                        <span className="font-mono text-[9px] text-zinc-500 tracking-wide">
-                                            {trait}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-1">
-                                        <span className="font-mono text-[9px] text-tactical-text font-semibold">
-                                            {value}
-                                        </span>
-                                        <ChevronRight className="w-2.5 h-2.5 text-zinc-700" />
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </motion.div>
-                )}
-
-                {/* Model Info */}
-                {data && (
-                    <div className="flex items-center justify-between pt-2 border-t border-tactical-border/50">
-                        <span className="font-mono text-[8px] text-zinc-600">
-                            MODEL: {data.model_id || "N/A"}
-                        </span>
-                        <span className="font-mono text-[8px] text-zinc-600">
-                            PROFILE: {data.profile_id}
-                        </span>
+                                    <CheckCircle2 className="w-3.5 h-3.5" />
+                                    <span className="font-mono text-[9px] font-bold tracking-wider uppercase">
+                                        View On-Chain Proof
+                                    </span>
+                                    <ChevronRight className="w-3 h-3 group-hover:translate-x-1 transition-transform" />
+                                </a>
+                            ) : (
+                                <div className="flex items-center justify-center gap-2 w-full bg-zinc-900/50 border border-zinc-800 border-dashed text-zinc-600 py-2.5 rounded cursor-not-allowed">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    <span className="font-mono text-[9px] tracking-wider uppercase">
+                                        Proof Not Finalized
+                                    </span>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                )}
-
-                {/* Error state */}
-                {error && (
-                    <div className="flex items-center gap-2 px-3 py-2 rounded bg-red-500/10 border border-red-500/20">
-                        <AlertTriangle className="w-3 h-3 text-red-400" />
-                        <span className="font-mono text-[9px] text-red-400">{error}</span>
-                    </div>
-                )}
-
-                {/* Download Button */}
-                {data && (
-                    <motion.button
-                        initial={{ opacity: 0, y: 6 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.8 }}
-                        onClick={handleDownloadPoster}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-md
-                            bg-tactical-primary/10 border border-tactical-primary/20
-                            hover:bg-tactical-primary/20 hover:border-tactical-primary/40
-                            transition-all duration-200 group"
-                    >
-                        <Download className="w-3.5 h-3.5 text-tactical-primary group-hover:scale-110 transition-transform" />
-                        <span className="font-mono text-[9px] text-tactical-primary font-bold tracking-[0.2em] uppercase">
-                            Download Forensic Poster
-                        </span>
-                    </motion.button>
                 )}
             </div>
         </motion.div>

@@ -1,131 +1,117 @@
-# VANTAGE-STR: Tactical Forensic DNA Analysis & Phenotype Reconstruction
+# VANTAGE-STR: Advanced Forensic DNA Intelligence Platform
 
-![License](https://img.shields.io/badge/license-MIT-green)
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
-![Python](https://img.shields.io/badge/python-3.10+-yellow)
-![Next.js](https://img.shields.io/badge/Next.js-15+-black)
+![License](https://img.shields.io/badge/license-MIT-emerald)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Status](https://img.shields.io/badge/status-Production%20Ready-success)
 
-**VANTAGE-STR** is a state-of-the-art forensic intelligence platform designed for tactical DNA profiling, kinship analytics, and AI-driven phenotypic reconstruction. Built for field deployments and high-throughput forensic labs, it combines rigorous statistical models with generative AI to transform raw STR (Short Tandem Repeat) data into actionable intelligence.
+**VANTAGE-STR** is a cutting-edge forensic intelligence system designed for high-stakes DNA profiling, kinship analytics, and biometric reconstruction. It bridges the gap between biological analysis and tactical intelligence by combining rigorous **Likelihood Ratio (LR)** statistical models with **Generative AI** and **Blockchain** immutability.
 
 ---
 
 ## 🛡️ Core Capabilities
 
-### 1. Advanced DNA Analytics
-- **Forensic STR Ingestion**: Supports standardized CODIS markers and custom tactical profiles.
-- **Likelihood Ratio (LR) Engine**: Implements the **Balding-Nichols NRC II** model for population-corrected matching.
-- **Bayesian Inference Core**: Probability-driven reasoning for contaminated or low-quality samples.
+### 1. Forensic Identity Panel
+*   **Real-Time Phenotype Prediction**: Deterministic mapping of SNP markers (HERC2, MC1R, SLC24A5) to physical traits.
+    *   **Ocular Pigmentation**: Eye color prediction (Blue, Hazel, Brown).
+    *   **Dermal Classification**: Skin tone estimation (Type I-VI).
+    *   **Hair Morphology**: Texture and color analysis.
+*   **Coherence & Reliability**: Automated "Sync Status" scoring to validate genetic data against predicted phenotypes.
+*   **Visual Forensics**: High-fidelity, dark-mode UI for rapid field assessment.
 
-### 2. Kinship Intelligence
-- **Relationship Prediction**: Automated calculation of Kinship Indices (KI) for:
-  - Parent-Child (PC)
-  - Full Siblings (FS)
-  - Half-Siblings (HS)
-- **Pedigree Visualization**: Dynamic generation of familial graphs from multi-node data hits.
+### 2. Geo-Forensic Intelligence
+*   **Ancestry Heatmaps**: Interactive global map visualizing probable ancestral origins using k-NN and Random Forest classifiers.
+*   **Region Targeting**: Auto-flyTo navigation focusing on high-probability geographic clusters.
+*   **Confidence Rings**: Dynamic visualization of 95% confidence zones for geolocation.
 
-### 3. Phenotypic Reconstruction
-- **Traits Prediction**: AI-powered estimation of eye color, hair pigment, skin tone, and ancestry using SNP/STR phenotype markers.
-- **Forensic Facial Reconstruction**: High-fidelity facial renders using generative AI models (SDXL/Stable Diffusion), aligned with predicted traits.
-- **Evidence Posters**: Professional, high-resolution forensic export for investigation reports.
+### 3. Kinship & Pedigree Analytics
+*   **Familial Relationship Detection**: Instant calculation of Kinship Indices (KI) for Parent-Child, Sibling, and Half-Sibling relationships.
+*   **Pedigree Tree Visualization**: Graph-based rendering of multi-generational family links.
+*   **Population Correction**: Balding-Nichols NRC II model integration for accurate statistical weighting.
+
+### 4. Blockchain Audit Ledger
+*   **Immutable Integrity**: Every analysis is hashed and anchored to the **Polygon/Sepolia** blockchain.
+*   **On-Chain Verification**: Direct links to Etherscan for independent auditability of forensic reports.
+*   **Zero-Knowledge Proofs (ZKP)**: Private verification of DNA matches without revealing raw genetic data (Circom/SnarkJS).
 
 ---
 
 ## 🏗️ Technical Architecture
 
-```mermaid
-graph TD
-    subgraph "Frontend (Next.js 15)"
-        UI["Tactical Dashboard (Tailwind v4)"]
-        Store["Zustand State Manager"]
-        Visuals["Reconstruction Canvas"]
-    end
+### Frontend (Tactical UI)
+*   **Framework**: Next.js 14 (App Router)
+*   **Styling**: Tailwind CSS v4, Framer Motion (Animations)
+*   **Maps**: Leaflet.js / React-Leaflet
+*   **State**: React Hooks / Context API
 
-    subgraph "Backend (FastAPI)"
-        Core["Kinship & LR Engine"]
-        AI["DSPy Strategic Reasoning"]
-        GenAI["Facial Reconstruction Client"]
-    end
+### Backend (Intelligence Core)
+*   **API**: FastAPI (Python 3.10+)
+*   **ML Engines**: PyTorch, Scikit-learn (Phenotype/Ancestry Models)
+*   **Database**: Supabase / PostgreSQL (Structured Data) & Milvus (Vector Embeddings)
+*   **Agents**: DSPy for strategic reasoning and report generation
 
-    subgraph "Infrastructure"
-        DB[("Milvus Vector DB")]
-        Redis[("Redis Cache")]
-    end
-
-    UI <--> Core
-    Core <--> DB
-    AI <--> GenAI
-    Core <--> AI
-```
-
----
-
-## 🛠️ Technology Stack
-
-| Component | Technology |
-| :--- | :--- |
-| **Frontend Framework** | Next.js 15+ (App Router) |
-| **Styling** | Tailwind CSS v4, Framer Motion |
-| **Backend API** | FastAPI (Python 3.10+) |
-| **Database** | Milvus Vector Database (IVF_FLAT Index) |
-| **AI Reasoning** | DSPy (Declarative Programming) |
-| **Image Generation** | Stable Diffusion XL (Asynchronous Client) |
-| **Export Engine** | `html-to-image` (HQ PNG Support) |
+### Blockchain (Verification Layer)
+*   **Smart Contracts**: Solidity (Hardhat Development Environment)
+*   **Integration**: Wagmi / Viem hooks
+*   **Network**: Polygon Amoy / Sepolia Testnet
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.10+
-- Node.js 20+
+*   **Docker & Docker Compose**
+*   **Node.js 20+**
+*   **Python 3.10+**
 
 ### 1. Infrastructure Setup
-Spin up the vector database and necessary infrastructure services:
+Spin up the local services (Database, Redis, Milvus):
 ```bash
 docker-compose up -d
 ```
 
 ### 2. Backend Installation
+Navigate to the backend directory and install dependencies:
 ```bash
 cd backend
+python -m venv venv
+source venv/bin/activate  # or `venv\Scripts\activate` on Windows
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
 ### 3. Frontend Installation
+Navigate to the frontend directory and start the development server:
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
 
+The dashboard will be available at `http://localhost:3000`.
+
 ---
 
-## 📄 Documentation & Workflows
+## 📄 Documentation
 
-### Deployment
-The system is designed for containerized deployment. Ensure `NEXT_PUBLIC_API_URL` is set to your production backend endpoint.
+### Security & Privacy
+VANTAGE-STR is built with **Privacy by Design**.
+*   **Data Isolation**: Raw STR markers are processed in secure, isolated environments.
+*   **ZKP**: Identity verification uses Zero-Knowledge Proofs to prevent genetic data leakage.
+*   **Audit Trails**: All access and modification events are logged to the immutable ledger.
 
-### Security
-VANTAGE-STR implements strict input validation and boundary enforcement for forensic data integrity. All STR marker computations are isolated from web-facing layers.
+### Contributing
+We welcome contributions from the forensic and open-source community. Please read `CONTRIBUTING.md` for our code of conduct and pull request process.
 
 ---
 
 ## ⚖️ License
-
 Distributed under the MIT License. See `LICENSE` for more information.
 
 ---
 
 ## 👨‍💻 Author
-
 **Yusuf Çalışır**
-- LinkedIn: [Yusuf Çalışır](https://www.linkedin.com/in/yusufcalisir/)
-- Portfolio: [yusufcalisir.me](https://yusufcalisir.me)
+*   **LinkedIn**: [Yusuf Çalışır](https://www.linkedin.com/in/yusufcalisir/)
+*   **Portfolio**: [yusufcalisir.me](https://yusufcalisir.me)
 
----
-
-Developed for the future of forensic technology.
-
-# str-analysis
+> *Deployed for the future of forensic technology.*

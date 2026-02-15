@@ -188,6 +188,23 @@ class VantageAuditService:
             print(f"Blockchain Logging Error: {e}")
             raise e
 
+    def log_mpc_result(self, session_id: str, result_hash: str, relationship_type: str, kinship_percent: float) -> str:
+        """
+        Wrapper to log MPC-specific results using the generic query logger.
+        """
+        # Format: MPC_KINSHIP:{RELATIONSHIP}:{PERCENT}%
+        query_type = f"MPC_KINSHIP:{relationship_type}:{int(kinship_percent * 100)}%"
+        
+        # We use a system address for now as the 'investigator' since MPC is automated
+        system_address = "0x0000000000000000000000000000000000000000"
+        
+        return self.log_query_to_blockchain(
+            investigator_address=system_address,
+            profile_hash=result_hash,
+            query_type=query_type,
+            session_token=session_id
+        )
+
 
 # ── Singleton factory ──────────────────────────────────────────────────────────
 _service_instance: VantageAuditService | None = None

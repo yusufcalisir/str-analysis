@@ -17,6 +17,7 @@ import {
     Eye,
     Link2,
     ExternalLink,
+    Lock, // Added Lock icon
 } from "lucide-react";
 import { usePublicClient, useWatchContractEvent } from 'wagmi';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -41,6 +42,7 @@ interface LedgerEntry {
     metadata: Record<string, unknown>;
     entry_hash: string; // transaction hash
     block_number: bigint;
+    query_type: string;
 }
 
 interface LedgerStats {
@@ -68,7 +70,8 @@ const DEMO_LOGS: LedgerEntry[] = [
         compliance_decision: "authorized",
         metadata: { type: "Standard_Query" },
         entry_hash: `0x${Math.random().toString(16).slice(2)}...`,
-        block_number: BigInt(123460)
+        block_number: BigInt(123460),
+        query_type: "Standard_Query"
     },
     {
         index: -1,
@@ -80,7 +83,8 @@ const DEMO_LOGS: LedgerEntry[] = [
         compliance_decision: "suspended",
         metadata: { reason: "RATE_LIMIT_EXCEEDED" },
         entry_hash: `0x${Math.random().toString(16).slice(2)}...`,
-        block_number: BigInt(123459)
+        block_number: BigInt(123459),
+        query_type: "Suspicious_Activity"
     },
     {
         index: 1004,
@@ -92,7 +96,8 @@ const DEMO_LOGS: LedgerEntry[] = [
         compliance_decision: "authorized",
         metadata: { type: "Cross_Ref_Check" },
         entry_hash: `0x${Math.random().toString(16).slice(2)}...`,
-        block_number: BigInt(123458)
+        block_number: BigInt(123458),
+        query_type: "Cross_Ref_Check"
     },
     {
         index: 1003,
@@ -104,7 +109,8 @@ const DEMO_LOGS: LedgerEntry[] = [
         compliance_decision: "reverted",
         metadata: { type: "Unauthorized_Scope" },
         entry_hash: `0x${Math.random().toString(16).slice(2)}...`,
-        block_number: BigInt(123457)
+        block_number: BigInt(123457),
+        query_type: "Unauthorized_Scope"
     },
     {
         index: 1002,
@@ -116,7 +122,8 @@ const DEMO_LOGS: LedgerEntry[] = [
         compliance_decision: "authorized",
         metadata: { type: "Standard_Query" },
         entry_hash: `0x${Math.random().toString(16).slice(2)}...`,
-        block_number: BigInt(123456)
+        block_number: BigInt(123456),
+        query_type: "Standard_Query"
     }
 ];
 
@@ -170,7 +177,8 @@ function useAuditLogs() {
                     compliance_decision: "authorized",
                     metadata: { type: log.args.query_type },
                     entry_hash: log.transactionHash,
-                    block_number: log.blockNumber
+                    block_number: log.blockNumber,
+                    query_type: log.args.query_type || "Standard_Query"
                 }));
 
                 const formattedSuspensions: LedgerEntry[] = suspendedLogs.map((log) => ({
@@ -183,7 +191,8 @@ function useAuditLogs() {
                     compliance_decision: "suspended",
                     metadata: { reason: "RATE_LIMIT_EXCEEDED" },
                     entry_hash: log.transactionHash,
-                    block_number: log.blockNumber
+                    block_number: log.blockNumber,
+                    query_type: "Suspicious_Activity"
                 }));
 
                 const results = [...formattedQueries, ...formattedSuspensions].sort((a, b) =>
@@ -368,7 +377,14 @@ function EntryRow({ entry, isNew = false }: { entry: LedgerEntry; isNew?: boolea
                 </span>
 
                 {/* Chain Integrity Badge */}
-                {entry.entry_hash && (
+                {entry.query_type.startsWith("MPC_KINSHIP") ? (
+                    <div className="hidden sm:flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30" title="Zero-Knowledge MPC Proof">
+                        <Lock className="w-2.5 h-2.5 text-indigo-400" />
+                        <span className="font-mono text-[7px] font-bold text-indigo-400 uppercase tracking-wide">
+                            Verified Kinship Proof
+                        </span>
+                    </div>
+                ) : entry.entry_hash && (
                     <div className="hidden sm:flex items-center gap-1.5 px-1.5 py-0.5 rounded bg-emerald-500/5 border border-emerald-500/20" title="Valid On-Chain Record">
                         <ShieldCheck className="w-2.5 h-2.5 text-emerald-400" />
                         <span className="font-mono text-[7px] font-bold text-emerald-400 uppercase tracking-wide">

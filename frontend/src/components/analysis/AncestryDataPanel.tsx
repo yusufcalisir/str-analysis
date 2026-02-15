@@ -25,6 +25,7 @@ interface AncestryDataPanelProps {
     data: GeoProbability[];
     reliabilityScore: number;
     txHash?: string;
+    selectedRegion?: string | null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -36,19 +37,21 @@ function ProbabilityBar({
     probability,
     color,
     rank,
+    isSelected,
 }: {
     region: string;
     probability: number;
     color: string;
     rank: number;
+    isSelected?: boolean;
 }) {
     const pct = (probability * 100).toFixed(1);
     return (
         <motion.div
             initial={{ opacity: 0, x: -8 }}
-            animate={{ opacity: 1, x: 0 }}
+            animate={{ opacity: 1, x: 0, scale: isSelected ? 1.02 : 1 }}
             transition={{ delay: 0.1 + rank * 0.06 }}
-            className="group"
+            className={`group p-1.5 rounded transition-all ${isSelected ? 'bg-tactical-primary/10 border border-tactical-primary/30' : 'border border-transparent'}`}
         >
             <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-2">
@@ -145,6 +148,7 @@ export default function AncestryDataPanel({
     data,
     reliabilityScore,
     txHash,
+    selectedRegion,
 }: AncestryDataPanelProps) {
     const truncatedHash = txHash
         ? `${txHash.slice(0, 8)}...${txHash.slice(-6)}`
@@ -168,6 +172,7 @@ export default function AncestryDataPanel({
                             probability={region.probability}
                             color={region.color}
                             rank={idx}
+                            isSelected={selectedRegion === region.region}
                         />
                     ))}
                 </div>

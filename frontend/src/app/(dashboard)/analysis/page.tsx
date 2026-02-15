@@ -11,9 +11,18 @@ import RarityHeatmap from "@/components/analysis/RarityHeatmap";
 import PedigreeTree from "@/components/analysis/PedigreeTree";
 import LociSensitivityMap from "@/components/analysis/LociSensitivityMap";
 import BayesianShiftChart from "@/components/analysis/BayesianShiftChart";
+import SuspectVisualizer from "@/components/analysis/SuspectVisualizer";
 import { useIngestStore } from "@/store/ingestStore";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
+
+interface KinshipMatch {
+    lat: number;
+    lng: number;
+    kinship_score: number;
+    relationship_type: string;
+    tx_hash?: string;
+}
 
 interface AnalysisData {
     profile_id: string;
@@ -37,6 +46,7 @@ interface AnalysisData {
     total_analysis_time_ms: number;
     kinship_result: any | null;
     familial_hit_detected: boolean;
+    kinship_matches: KinshipMatch[];
     // Phase 3.7 — Bayesian
     bayesian_posterior: number;
     prior_hp: number;
@@ -50,6 +60,10 @@ interface AnalysisData {
     // Phase 4 — Geo-Forensic
     geo_analysis_results: any[] | null;
     geo_reliability_score: number;
+    // Phase 4.5 — Synchronized Phenotype
+    phenotype_report?: any;
+    coherence_score?: number;
+    tx_hash?: string;
 }
 
 type TabId = "statistical" | "relationship" | "bayesian";
@@ -59,6 +73,7 @@ type TabId = "statistical" | "relationship" | "bayesian";
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
 async function fetchAnalysis(profileId: string, population: string): Promise<AnalysisData> {
+    console.log("[DEBUG] fetchAnalysis payload:", { profile_id: profileId, population });
     const res = await fetch(`${API_BASE}/profile/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,6 +130,44 @@ function TabButton({
     );
 }
 
+// ─── Scanning Skeleton ──────────────────────────────────────────────────────
+
+function ScanningSkeleton() {
+    return (
+        <div className="space-y-6 animate-pulse p-4">
+            <div className="flex items-center justify-between pb-4 border-b border-tactical-border/50">
+                <div className="space-y-2">
+                    <div className="h-2 w-24 bg-zinc-800 rounded" />
+                    <div className="h-4 w-48 bg-zinc-800 rounded" />
+                </div>
+                <div className="h-8 w-24 bg-zinc-800 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+                <div className="h-32 bg-zinc-900/50 rounded border border-tactical-border/30" />
+                <div className="h-32 bg-zinc-900/50 rounded border border-tactical-border/30" />
+            </div>
+
+            <div className="space-y-3">
+                {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="flex items-center gap-3">
+                        <div className="h-2 w-2 bg-tactical-primary/40 rounded-full" />
+                        <div className="h-2 flex-1 bg-zinc-900 rounded" />
+                        <div className="h-2 w-16 bg-zinc-900 rounded" />
+                    </div>
+                ))}
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-8 space-y-3">
+                <Loader2 className="w-8 h-8 text-tactical-primary animate-spin" />
+                <p className="font-mono text-[10px] text-tactical-primary tracking-[0.2em] uppercase">
+                    Scanning DNA Sequence...
+                </p>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function AnalysisPage() {
@@ -129,6 +182,13 @@ export default function AnalysisPage() {
     // ZKP State
     const [zkpStatus, setZkpStatus] = useState<'idle' | 'generating' | 'verified' | 'failed'>('idle');
     const [zkpTxHash, setZkpTxHash] = useState<string | null>(null);
+
+    // Geo-Forensic Sync State
+    const [hoveredRegion, setHoveredRegion] = useState<string | null>(null);
+
+    const handleRegionHover = useCallback((region: string | null) => {
+        setHoveredRegion(region);
+    }, []);
 
     // ZKP Worker
     const generateZKP = useCallback(async () => {
@@ -205,7 +265,7 @@ export default function AnalysisPage() {
     };
 
 
-    const activeProfileId = lastIngestedProfileId || "test-profile-eu";
+    const activeProfileId = (lastIngestedProfileId && lastIngestedProfileId.trim() !== "") ? lastIngestedProfileId : "test-profile-eu";
 
     const runAnalysis = useCallback(async (profileId: string, pop: string) => {
         setLoading(true);
@@ -459,43 +519,67 @@ export default function AnalysisPage() {
                         exit={{ opacity: 0, y: -6 }}
                         transition={{ duration: 0.2 }}
                     >
-                        <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
-                            {/* Left Column */}
-                            <div className="space-y-5 min-w-0">
-                                {analysis && (
-                                    <section>
-                                        <RarityHeatmap
-                                            perLocusDetails={analysis.per_locus_details}
-                                            population={population}
-                                            onPopulationChange={handlePopulationChange}
-                                        />
-                                    </section>
-                                )}
-                                <section>
-                                    <AgentThoughtProcess />
-                                </section>
-                                <section>
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <div className="w-1 h-4 rounded-full bg-tactical-primary" />
-                                        <h2 className="font-data text-[10px] font-bold tracking-[0.15em] text-tactical-text uppercase">
-                                            Global Verification Results
-                                        </h2>
-                                        <span className="font-data text-[8px] text-zinc-600">
-                                            — Completeness-Aware Ranking
-                                        </span>
-                                    </div>
-                                    <MatchResultCardDemo />
-                                </section>
+                        {loading && !analysis ? (
+                            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
+                                <div className="space-y-5 bg-tactical-surface rounded-lg border border-tactical-border overflow-hidden">
+                                    <ScanningSkeleton />
+                                </div>
+                                <aside className="h-[720px] bg-tactical-surface rounded-lg border border-tactical-border animate-pulse" />
                             </div>
+                        ) : (
+                            <div className="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-5">
+                                {/* Left Column */}
+                                <div className="space-y-5 min-w-0">
+                                    {analysis && (
+                                        <section>
+                                            <RarityHeatmap
+                                                perLocusDetails={analysis.per_locus_details}
+                                                population={population}
+                                                onPopulationChange={handlePopulationChange}
+                                            />
+                                        </section>
+                                    )}
+                                    <section>
+                                        <AgentThoughtProcess />
+                                    </section>
+                                    <section>
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-1 h-4 rounded-full bg-tactical-primary" />
+                                            <h2 className="font-data text-[10px] font-bold tracking-[0.15em] text-tactical-text uppercase">
+                                                Global Verification Results
+                                            </h2>
+                                            <span className="font-data text-[8px] text-zinc-600">
+                                                — Completeness-Aware Ranking
+                                            </span>
+                                        </div>
+                                        <MatchResultCardDemo />
+                                    </section>
+                                </div>
 
-                            {/* Right Column */}
-                            <aside className="lg:sticky lg:top-4 lg:self-start h-[720px]">
-                                <GeoForensicPanel
-                                    geoResults={analysis?.geo_analysis_results || null}
-                                    reliabilityScore={analysis?.geo_reliability_score || 0}
-                                />
-                            </aside>
-                        </div>
+                                {/* Right Column — Using h-fit to prevent data squeezing */}
+                                <aside className="lg:sticky lg:top-4 lg:self-start h-fit space-y-5 pb-8">
+                                    <div className="min-h-[520px]">
+                                        <GeoForensicPanel
+                                            geoResults={analysis?.geo_analysis_results || null}
+                                            reliabilityScore={analysis?.geo_reliability_score || 0}
+                                            isLoading={loading}
+                                            onRegionHover={handleRegionHover}
+                                            selectedRegion={hoveredRegion}
+                                        />
+                                    </div>
+                                    <div className="h-fit">
+                                        <SuspectVisualizer
+                                            profileId={activeProfileId}
+                                            hoveredRegion={hoveredRegion}
+                                            phenotypeReport={analysis?.phenotype_report}
+                                            coherenceScore={analysis?.coherence_score}
+                                            txHash={analysis?.tx_hash}
+                                            ancestryRegion={analysis?.geo_analysis_results?.[0]?.region}
+                                        />
+                                    </div>
+                                </aside>
+                            </div>
+                        )}
                     </motion.div>
                 )}
 
@@ -542,6 +626,7 @@ export default function AnalysisPage() {
                                 <GeoForensicPanel
                                     geoResults={analysis?.geo_analysis_results || null}
                                     reliabilityScore={analysis?.geo_reliability_score || 0}
+                                    isLoading={loading}
                                 />
                             </aside>
                         </div>
@@ -642,6 +727,7 @@ export default function AnalysisPage() {
                                 <GeoForensicPanel
                                     geoResults={analysis?.geo_analysis_results || null}
                                     reliabilityScore={analysis?.geo_reliability_score || 0}
+                                    isLoading={loading}
                                 />
                             </aside>
                         </div>

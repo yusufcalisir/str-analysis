@@ -9,7 +9,7 @@ import "leaflet/dist/leaflet.css";
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface GeoProbability {
+export interface GeoProbability {
     region: string;
     lat: number;
     lng: number;
@@ -19,10 +19,10 @@ interface GeoProbability {
     final_radius_km?: number;
 }
 
-type ScanPhase = "idle" | "scanning" | "calculating" | "locked";
+export type ScanPhase = "idle" | "scanning" | "calculating" | "locked";
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// HEATMAP LAYER (leaflet.heat integration)
+// HEATMAP LAYER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function HeatmapLayer({ data }: { data: GeoProbability[] }) {
@@ -32,9 +32,7 @@ function HeatmapLayer({ data }: { data: GeoProbability[] }) {
 
     useEffect(() => {
         isMounted.current = true;
-        return () => {
-            isMounted.current = false;
-        };
+        return () => { isMounted.current = false; };
     }, []);
 
     useEffect(() => {
@@ -43,7 +41,6 @@ function HeatmapLayer({ data }: { data: GeoProbability[] }) {
         import("leaflet.heat").then(() => {
             if (!isMounted.current || !map) return;
 
-            // Remove existing layer if it exists (e.g. data update)
             if (layerRef.current) {
                 map.removeLayer(layerRef.current);
                 layerRef.current = null;
@@ -55,7 +52,7 @@ function HeatmapLayer({ data }: { data: GeoProbability[] }) {
                 d.probability,
             ]);
 
-            // @ts-ignore — leaflet.heat extends L globally
+            // @ts-ignore
             const layer = L.heatLayer(points, {
                 radius: 45,
                 blur: 30,
@@ -64,11 +61,11 @@ function HeatmapLayer({ data }: { data: GeoProbability[] }) {
                 minOpacity: 0.15,
                 gradient: {
                     0.0: "rgba(0,0,0,0)",
-                    0.2: "#1a1a4e", // Deep Navy
-                    0.4: "#3B82F6", // Blue
-                    0.6: "#22C55E", // Green
-                    0.8: "#F59E0B", // Amber
-                    1.0: "#EF4444", // Red
+                    0.2: "#1a1a4e",
+                    0.4: "#3B82F6",
+                    0.6: "#22C55E",
+                    0.8: "#F59E0B",
+                    1.0: "#EF4444",
                 },
             });
 
@@ -88,73 +85,69 @@ function HeatmapLayer({ data }: { data: GeoProbability[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// SCAN CONTROLLER — drives flyTo zoom + phase transitions
+// SCAN CONTROLLER
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ScanController({
     target,
-    phase,
     onPhaseChange,
 }: {
     target: GeoProbability;
-    phase: ScanPhase;
     onPhaseChange: (phase: ScanPhase) => void;
 }) {
     const map = useMap();
-    const startedRef = useRef(false);
+    const currentTargetRef = useRef<string | null>(null);
 
     useEffect(() => {
-        if (phase !== "idle" || startedRef.current) return;
-        startedRef.current = true;
+        if (!target || target.region === currentTargetRef.current) return;
+        currentTargetRef.current = target.region;
 
-        // Phase 1: Scanning Global Databases (0–1s)
         onPhaseChange("scanning");
-        map.flyTo([target.lat, target.lng], 4, { duration: 1.2 });
 
-        // Phase 2: Calculating Population Covariance (1–2s)
         const t1 = setTimeout(() => {
+            map.flyTo([target.lat, target.lng], 4, { duration: 2.5 });
             onPhaseChange("calculating");
-            map.flyTo([target.lat, target.lng], 7, { duration: 1.0 });
-        }, 1200);
+        }, 1000);
 
-        // Phase 3: 95% Confidence Zone Locked (2–3s)
         const t2 = setTimeout(() => {
+            map.flyTo([target.lat, target.lng], 5, { duration: 1.5 });
             onPhaseChange("locked");
-            const finalZoom = target.final_radius_km && target.final_radius_km < 200 ? 10 : 8;
-            map.flyTo([target.lat, target.lng], finalZoom, { duration: 0.8 });
-        }, 2600);
+        }, 4000);
 
         return () => {
             clearTimeout(t1);
             clearTimeout(t2);
         };
-    }, [phase, target, map, onPhaseChange]);
+    }, [target, map, onPhaseChange]);
 
     return null;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CONFIDENCE RING — animated radius shrink from initial → final
+// CONFIDENCE RING
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function ConfidenceRing({
     region,
     phase,
+    onHover,
 }: {
     region: GeoProbability;
     phase: ScanPhase;
+    onHover?: (region: string | null) => void;
 }) {
-    const initialR = (region.initial_radius_km || 2000) * 1000; // km → m
+    const initialR = (region.initial_radius_km || 2000) * 1000;
     const finalR = (region.final_radius_km || 200) * 1000;
     const [currentRadius, setCurrentRadius] = useState(initialR);
     const animRef = useRef<number | null>(null);
     const startTimeRef = useRef<number | null>(null);
 
-    const ANIMATION_DURATION = 2600; // ms (matches scan controller)
+    const ANIMATION_DURATION = 3000;
 
     useEffect(() => {
         if (phase === "idle") {
             setCurrentRadius(initialR);
+            startTimeRef.current = null;
             return;
         }
 
@@ -166,17 +159,11 @@ function ConfidenceRing({
             const animate = (now: number) => {
                 const elapsed = now - (startTimeRef.current || now);
                 const progress = Math.min(elapsed / ANIMATION_DURATION, 1);
-
-                // Ease-out cubic for smooth deceleration
                 const eased = 1 - Math.pow(1 - progress, 3);
                 const r = initialR + (finalR - initialR) * eased;
                 setCurrentRadius(Math.max(r, finalR));
-
-                if (progress < 1) {
-                    animRef.current = requestAnimationFrame(animate);
-                }
+                if (progress < 1) animRef.current = requestAnimationFrame(animate);
             };
-
             animRef.current = requestAnimationFrame(animate);
         }
 
@@ -195,10 +182,14 @@ function ConfidenceRing({
 
     return (
         <>
-            {/* Confidence area circle */}
             <Circle
                 center={[region.lat, region.lng]}
                 radius={currentRadius}
+                eventHandlers={{
+                    mouseover: () => onHover?.(region.region),
+                    mouseout: () => onHover?.(null),
+                    click: () => onHover?.(region.region),
+                }}
                 pathOptions={{
                     fillColor: "#22C55E",
                     fillOpacity: isLocked ? 0.12 : 0.06,
@@ -209,8 +200,6 @@ function ConfidenceRing({
                     className: isActive ? "confidence-ring-pulse" : "",
                 }}
             />
-
-            {/* Centroid marker — blinks only when locked */}
             <CircleMarker
                 center={[region.lat, region.lng]}
                 radius={isLocked ? 6 : 4}
@@ -222,112 +211,7 @@ function ConfidenceRing({
                     opacity: 1,
                     className: isLocked ? "centroid-locked-blink" : "",
                 }}
-            >
-                <Popup>
-                    <div
-                        style={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: "11px",
-                            color: "#fafafa",
-                            background: "#111113",
-                            padding: "12px 16px",
-                            borderRadius: "6px",
-                            border: `1px solid ${region.color}40`,
-                            minWidth: "200px",
-                        }}
-                    >
-                        <div
-                            style={{
-                                fontSize: "8px",
-                                letterSpacing: "0.15em",
-                                color: "#71717A",
-                                textTransform: "uppercase",
-                                marginBottom: "6px",
-                            }}
-                        >
-                            95% CONFIDENCE ZONE
-                        </div>
-                        <div
-                            style={{
-                                fontSize: "13px",
-                                fontWeight: "700",
-                                color: region.color,
-                                marginBottom: "4px",
-                            }}
-                        >
-                            {region.region}
-                        </div>
-                        <div
-                            style={{
-                                fontSize: "18px",
-                                fontWeight: "800",
-                                color: "#fafafa",
-                                marginBottom: "4px",
-                            }}
-                        >
-                            {(region.probability * 100).toFixed(1)}%
-                        </div>
-                        <div style={{ fontSize: "9px", color: "#52525B", marginBottom: "2px" }}>
-                            Radius: {(currentRadius / 1000).toFixed(0)} km
-                        </div>
-                        <div style={{ fontSize: "9px", color: "#52525B" }}>
-                            {region.lat.toFixed(2)}°N, {region.lng.toFixed(2)}°E
-                        </div>
-                    </div>
-                </Popup>
-            </CircleMarker>
-        </>
-    );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// SECONDARY REGION MARKERS (ranks 2–3, static)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function SecondaryMarkers({ data }: { data: GeoProbability[] }) {
-    const secondary = useMemo(() => data.slice(1, 3), [data]);
-
-    return (
-        <>
-            {secondary.map((region, idx) => (
-                <CircleMarker
-                    key={region.region}
-                    center={[region.lat, region.lng]}
-                    radius={6}
-                    pathOptions={{
-                        fillColor: region.color,
-                        fillOpacity: 0.5,
-                        color: region.color,
-                        weight: 1.5,
-                        opacity: 0.6,
-                    }}
-                >
-                    <Popup>
-                        <div
-                            style={{
-                                fontFamily: "'JetBrains Mono', monospace",
-                                fontSize: "11px",
-                                color: "#fafafa",
-                                background: "#111113",
-                                padding: "12px 16px",
-                                borderRadius: "6px",
-                                border: `1px solid ${region.color}40`,
-                                minWidth: "180px",
-                            }}
-                        >
-                            <div style={{ fontSize: "8px", letterSpacing: "0.15em", color: "#71717A", textTransform: "uppercase", marginBottom: "6px" }}>
-                                GEO-FORENSIC MATCH #{idx + 2}
-                            </div>
-                            <div style={{ fontSize: "13px", fontWeight: "700", color: region.color, marginBottom: "4px" }}>
-                                {region.region}
-                            </div>
-                            <div style={{ fontSize: "18px", fontWeight: "800", color: "#fafafa" }}>
-                                {(region.probability * 100).toFixed(1)}%
-                            </div>
-                        </div>
-                    </Popup>
-                </CircleMarker>
-            ))}
+            />
         </>
     );
 }
@@ -338,10 +222,14 @@ function SecondaryMarkers({ data }: { data: GeoProbability[] }) {
 
 export default function ForensicMap({
     data,
+    kinshipMatches,
     onScanPhaseChange,
+    onRegionHover,
 }: {
     data: GeoProbability[];
+    kinshipMatches?: any[];
     onScanPhaseChange?: (phase: ScanPhase) => void;
+    onRegionHover?: (region: string | null) => void;
 }) {
     const [phase, setPhase] = useState<ScanPhase>("idle");
 
@@ -374,33 +262,47 @@ export default function ForensicMap({
                 background: "#0A0A0B",
             }}
         >
-            {/* CartoDB Dark Matter */}
             <TileLayer
                 url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
                 maxZoom={19}
             />
 
-            {/* Heatmap overlay */}
             <HeatmapLayer data={data} />
 
-            {/* Scan controller — drives flyTo + phase machine */}
             {topRegion && (
                 <ScanController
                     target={topRegion}
-                    phase={phase}
                     onPhaseChange={handlePhaseChange}
                 />
             )}
 
-            {/* Primary region: animated confidence ring */}
             {topRegion && (
-                <ConfidenceRing region={topRegion} phase={phase} />
+                <ConfidenceRing
+                    region={topRegion}
+                    phase={phase}
+                    onHover={onRegionHover}
+                />
             )}
 
-            {/* Secondary markers (ranks 2–3) */}
-            <SecondaryMarkers data={data} />
+            {data.slice(1, 3).map((region) => (
+                <CircleMarker
+                    key={region.region}
+                    center={[region.lat, region.lng]}
+                    radius={6}
+                    eventHandlers={{
+                        mouseover: () => onRegionHover?.(region.region),
+                        mouseout: () => onRegionHover?.(null),
+                        click: () => onRegionHover?.(region.region),
+                    }}
+                    pathOptions={{
+                        fillColor: region.color,
+                        fillOpacity: 0.5,
+                        color: region.color,
+                        weight: 1.5,
+                        opacity: 0.6,
+                    }}
+                />
+            ))}
         </MapContainer>
     );
 }
-
-export type { ScanPhase, GeoProbability };

@@ -166,56 +166,35 @@ class PhenotypeAnalyst(dspy.Module):
                 )
                 ai_reasoning = f"AI reasoning unavailable: {exc}"
 
-        # ── Stage 3: Visual Reconstruction (Phase 3.4) ──
-        image_url: Optional[str] = None
+        # ── Stage 3: Deterministic Phenotype Mapping (No GenAI) ──
+        # Replaces visual reconstruction with scientific trait prediction
         
-        # Generate forensic sketch/photo based on predicted phenotype
-        from app.core.engine.prompt_architect import SuspectPromptGenerator
-        from app.infrastructure.gen_ai_client import get_gen_ai_client
+        # Determine top ancestry region for context-aware fallbacks
+        ancestry_probs = engine_result.get("ancestry_indicators", {})
+        
+        # Run the new deterministic engine with Bayesian Sync
+        from app.agents.phenotype_engine import PhenotypeEngine
+        engine = PhenotypeEngine()
+        phenotype_data = engine.predict_phenotype(snp_map, ancestry_probabilities=ancestry_probs)
 
-        try:
-            # 1. Generate Prompt
-            prompt_gen = SuspectPromptGenerator()
-            # We use a default sex hint "male" for now, or infer from Y-chromosome markers if available
-            generated_prompt = prompt_gen.generate(engine_result, sex_hint="male")
-            
-            logger.info(f"[PHENOTYPE-VISUAL] Visual Prompt Created: {generated_prompt.positive[:60]}...")
-
-            # 2. Call GenAI Client (Async)
-            logger.info(f"[PHENOTYPE-VISUAL] Calling GenAI API for {profile_id}...")
-            
-            # Default to mock for stability during development, can switch to "replicate" via env var
-            client = get_gen_ai_client(provider="mock") 
-            gen_result = await client.generate_suspect_visual(
-                prompt=generated_prompt.positive,
-                negative_prompt=generated_prompt.negative,
-                seed=generated_prompt.seed,
-            )
-
-            image_url = gen_result.image_url
-            logger.info(f"[GenAI_SUCCESS] Image stored at: {image_url}")
-
-            # Add GenAI metadata to result
-            engine_result["image_url"] = image_url
-            engine_result["positive_prompt"] = generated_prompt.positive
-            engine_result["negative_prompt"] = generated_prompt.negative
-            engine_result["seed"] = generated_prompt.seed
-            engine_result["genai_model_id"] = gen_result.model_id
-            engine_result["trait_summary"] = generated_prompt.trait_summary
-
-        except Exception as exc:
-            logger.warning(f"[PHENOTYPE-VISUAL] Visualization failed: {exc}")
-            # Fallback to a reliable placeholder
-            # Using a generic avatar from UI Avatars as a safe fallback
-            # In a real production system, this would be a local static asset like "/static/silhouette.png"
-            engine_result["image_url"] = "https://ui-avatars.com/api/?name=Unknown+Suspect&background=0D8ABC&color=fff&size=512"
-            engine_result["genai_model_id"] = "fallback-silhouette"
-
+        # Merge results
+        # We replace the old 'traits' list with our structured forensic traits
+        engine_result["traits"] = phenotype_data["traits"]
+        engine_result["forensic_traits"] = phenotype_data["traits"]
+        engine_result["phenotype_reliability"] = phenotype_data["reliability_score"]
+        engine_result["phenotype_coherence"] = phenotype_data["coherence_score"]
+        engine_result["coherence_status"] = phenotype_data["coherence_status"]
+        engine_result["snps_analyzed"] = phenotype_data["snps_analyzed"]
+        
+        # Remove GenAI fields to prevent frontend confusion
+        engine_result["image_url"] = None
+        engine_result["genai_model_id"] = None
+        
         # ── Stage 4: Merge results ──
         engine_result["ai_reasoning"] = ai_reasoning
-        engine_result["model_version"] = "HIrisPlex-S v1.0"
+        engine_result["model_version"] = "VANTAGE-STR Phenotype v2.0"
         
-        logger.info(f"[PHENOTYPE-API] API Response Sent with Image URL for {profile_id}")
+        logger.info(f"[PHENOTYPE-API] Analysis complete for {profile_id}. Traits: {phenotype_data['traits']}")
         return engine_result
 
     def forward(
