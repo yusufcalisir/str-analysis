@@ -174,7 +174,8 @@ function GlobalNodes({ onSelectNode }: GlobalNodesProps) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const res = await fetch("http://localhost:8000/system/stats");
+                const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const res = await fetch(`${API_BASE}/system/stats`);
                 if (res.ok) {
                     const data = await res.json();
                     setStats({
@@ -265,7 +266,8 @@ function StatsGrid() {
         const fetchStats = async () => {
             try {
                 // We reuse the same endpoint. In a real app, we might want a SWR hook or context.
-                const res = await fetch("http://localhost:8000/system/stats");
+                const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+                const res = await fetch(`${API_BASE}/system/stats`);
                 if (res.ok) {
                     const data = await res.json();
                     setStats(prev => ({

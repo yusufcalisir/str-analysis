@@ -1,8 +1,14 @@
 import { http, createConfig } from 'wagmi'
 import { mainnet, sepolia, polygonAmoy, hardhat } from 'wagmi/chains'
 
+import { injected } from 'wagmi/connectors'
+
 export const config = createConfig({
     chains: [polygonAmoy, sepolia, mainnet],
+    connectors: [
+        injected(),
+    ],
+    ssr: true,
     transports: {
         [polygonAmoy.id]: http(),
         [sepolia.id]: http(),
