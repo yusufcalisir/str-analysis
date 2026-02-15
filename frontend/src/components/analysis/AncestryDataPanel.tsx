@@ -182,7 +182,7 @@ export default function AncestryDataPanel({
             <div className="border-t border-tactical-border/50" />
 
             {/* Section 2 + 3: Reliability & Chain of Custody */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <ReliabilityGauge score={reliabilityScore} />
 
                 {/* Chain of Custody Badge */}

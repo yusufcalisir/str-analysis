@@ -353,14 +353,14 @@ export default function AnalysisPage() {
             className="space-y-5"
         >
             {/* ── Header ── */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 lg:gap-2">
                 <div className="flex items-center gap-2 min-w-0">
                     <FlaskConical className="w-4 h-4 text-tactical-primary shrink-0" />
                     <h1 className="font-data text-[10px] lg:text-xs font-bold tracking-[0.1em] lg:tracking-[0.2em] text-tactical-text uppercase truncate">
                         Forensic_Analysis_Engine
                     </h1>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
                     {/* ZKP Button */}
                     <button
                         onClick={generateZKP}
@@ -674,7 +674,7 @@ export default function AnalysisPage() {
                         </div>
 
                         {/* Stats Row */}
-                        <div className="grid grid-cols-4 gap-3 mb-5">
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
                             {[
                                 { label: "Posterior P(Hp|E)", value: analysis.bayesian_posterior?.toFixed(6) || "0" },
                                 { label: "Prior P(Hp)", value: analysis.prior_hp ? analysis.prior_hp.toExponential(2) : "5.00e-1" },
