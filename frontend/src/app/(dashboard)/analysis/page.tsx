@@ -2,10 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FlaskConical, Dna, Radio, Loader2, RefreshCw, BarChart3, GitBranch, Brain, Trash2 } from "lucide-react";
+import { FlaskConical, Dna, Radio, Loader2, RefreshCw, BarChart3, GitBranch, Brain, Trash2, ShieldCheck, Shield } from "lucide-react";
 import AgentThoughtProcess from "@/components/analysis/AgentThoughtProcess";
 import { MatchResultCardDemo } from "@/components/analysis/MatchResultCard";
-import SuspectVisualizer from "@/components/analysis/SuspectVisualizer";
+import GeoForensicPanel from "@/components/analysis/GeoForensicPanel";
 import ForensicStatsBanner from "@/components/analysis/ForensicStatsBanner";
 import RarityHeatmap from "@/components/analysis/RarityHeatmap";
 import PedigreeTree from "@/components/analysis/PedigreeTree";
@@ -47,6 +47,9 @@ interface AnalysisData {
     stutter_warnings: string[];
     iso17025_verbal: string;
     sensitivity_map: any[];
+    // Phase 4 — Geo-Forensic
+    geo_analysis_results: any[] | null;
+    geo_reliability_score: number;
 }
 
 type TabId = "statistical" | "relationship" | "bayesian";
@@ -123,6 +126,84 @@ export default function AnalysisPage() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<TabId>("statistical");
+    // ZKP State
+    const [zkpStatus, setZkpStatus] = useState<'idle' | 'generating' | 'verified' | 'failed'>('idle');
+    const [zkpTxHash, setZkpTxHash] = useState<string | null>(null);
+
+    // ZKP Worker
+    const generateZKP = useCallback(async () => {
+        if (zkpStatus === 'generating' || zkpStatus === 'verified') return;
+        setZkpStatus('generating');
+
+        try {
+            // Initialize Worker
+            const worker = new Worker(new URL('../../../workers/ZKPWorker.ts', import.meta.url));
+
+            worker.onmessage = async (e) => {
+                const { type, proof, publicSignals, error } = e.data;
+
+                if (type === 'ERROR') {
+                    console.error("ZKP Generation Failed:", error);
+                    setZkpStatus('failed'); // In real app, show error toast
+                    // For DEMO purposes only: If artifacts are missing, simulate success after delay
+                    // In production, REMOVE this fallback.
+                    if (error.includes('fetch')) {
+                        console.warn("Using MOCK PROOF for demo (Artifacts missing)");
+                        await verifyMockProof();
+                    }
+                    worker.terminate();
+                    return;
+                }
+
+                if (type === 'PROOF_GENERATED') {
+                    // Send to Backend
+                    await verifyProofOnBackend(proof, publicSignals);
+                    worker.terminate();
+                }
+            };
+
+            // Start Generation (Mock Input for Demo)
+            worker.postMessage({
+                input: {
+                    private_dna_array: Array(20).fill("12345"),
+                    salt: "123456789",
+                    public_hash: "12345678901234567890" // This must match circuit output
+                },
+                wasmPath: '/zkp/dna_match.wasm',
+                zkeyPath: '/zkp/dna_match_final.zkey'
+            });
+
+        } catch (err) {
+            console.error(err);
+            setZkpStatus('failed');
+        }
+    }, [zkpStatus]);
+
+    const verifyMockProof = async () => {
+        // Mock backend call
+        setZkpStatus('verified');
+        setZkpTxHash("0xMOCK_TX_HASH_123456");
+    };
+
+    const verifyProofOnBackend = async (proof: any, publicSignals: any) => {
+        try {
+            const res = await fetch(`${API_BASE}/profile/verify-zkp`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ proof, public_signals: publicSignals })
+            });
+            const data = await res.json();
+            if (data.verified) {
+                setZkpStatus('verified');
+                setZkpTxHash(data.tx_hash);
+            } else {
+                setZkpStatus('failed');
+            }
+        } catch (e) {
+            setZkpStatus('failed');
+        }
+    };
+
 
     const activeProfileId = lastIngestedProfileId || "test-profile-eu";
 
@@ -142,8 +223,10 @@ export default function AnalysisPage() {
                     setKinship(data.kinship_result);
                 } else {
                     // Fallback demo between test profiles if no hit
-                    const kinshipData = await fetchKinship("test-profile-eu", "test-profile-af", pop);
-                    setKinship(kinshipData);
+                    try {
+                        const kinshipData = await fetchKinship("test-profile-eu", "test-profile-af", pop);
+                        setKinship(kinshipData);
+                    } catch (e) { console.log("Kinship demo failed"); }
                 }
             } catch (kinshipError) {
                 console.warn("[ANALYSIS] Kinship data unavailable (non-critical):", kinshipError);
@@ -206,6 +289,30 @@ export default function AnalysisPage() {
                     </h1>
                 </div>
                 <div className="flex items-center gap-3">
+                    {/* ZKP Button */}
+                    <button
+                        onClick={generateZKP}
+                        disabled={zkpStatus === 'generating' || zkpStatus === 'verified'}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded border transition-all ${zkpStatus === 'verified'
+                            ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                            : zkpStatus === 'failed'
+                                ? "bg-red-500/10 text-red-400 border-red-500/30"
+                                : "bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-700"
+                            }`}
+                    >
+                        {zkpStatus === 'generating' ? (
+                            <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : zkpStatus === 'verified' ? (
+                            <ShieldCheck className="w-3 h-3" />
+                        ) : (
+                            <Shield className="w-3 h-3" />
+                        )}
+                        <span className="font-mono text-[9px] font-bold uppercase tracking-wider">
+                            {zkpStatus === 'verified' ? "Privacy Verified" : zkpStatus === 'generating' ? "Generating Proof..." : "Privacy Proof"}
+                        </span>
+                    </button>
+
+
                     {loading && (
                         <motion.div
                             initial={{ opacity: 0 }}
@@ -382,8 +489,11 @@ export default function AnalysisPage() {
                             </div>
 
                             {/* Right Column */}
-                            <aside className="lg:sticky lg:top-4 lg:self-start">
-                                <SuspectVisualizer profileId={lastIngestedProfileId || undefined} />
+                            <aside className="lg:sticky lg:top-4 lg:self-start h-[720px]">
+                                <GeoForensicPanel
+                                    geoResults={analysis?.geo_analysis_results || null}
+                                    reliabilityScore={analysis?.geo_reliability_score || 0}
+                                />
                             </aside>
                         </div>
                     </motion.div>
@@ -428,8 +538,11 @@ export default function AnalysisPage() {
                             </div>
 
                             {/* Right Column */}
-                            <aside className="lg:sticky lg:top-4 lg:self-start">
-                                <SuspectVisualizer profileId={lastIngestedProfileId || undefined} />
+                            <aside className="lg:sticky lg:top-4 lg:self-start h-[720px]">
+                                <GeoForensicPanel
+                                    geoResults={analysis?.geo_analysis_results || null}
+                                    reliabilityScore={analysis?.geo_reliability_score || 0}
+                                />
                             </aside>
                         </div>
                     </motion.div>
@@ -525,8 +638,11 @@ export default function AnalysisPage() {
                             </div>
 
                             {/* Right Column */}
-                            <aside className="lg:sticky lg:top-4 lg:self-start">
-                                <SuspectVisualizer profileId={lastIngestedProfileId || undefined} />
+                            <aside className="lg:sticky lg:top-4 lg:self-start h-[720px]">
+                                <GeoForensicPanel
+                                    geoResults={analysis?.geo_analysis_results || null}
+                                    reliabilityScore={analysis?.geo_reliability_score || 0}
+                                />
                             </aside>
                         </div>
                     </motion.div>

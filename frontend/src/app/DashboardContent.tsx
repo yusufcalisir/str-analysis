@@ -39,6 +39,10 @@ interface NodeStatus {
     status: "online" | "degraded" | "offline";
 }
 
+interface GlobalNodesProps {
+    onSelectNode: (nodeId: string) => void;
+}
+
 // ─── Component: ConsoleLog ───────────────────────────────────────────────────
 
 function SystemLogs() {
@@ -77,7 +81,9 @@ function SystemLogs() {
 
 // ─── Component: GlobalNodes ──────────────────────────────────────────────────
 
-function GlobalNodes() {
+// ─── Component: GlobalNodes ──────────────────────────────────────────────────
+
+function GlobalNodes({ onSelectNode }: GlobalNodesProps) {
     const nodes: NodeStatus[] = [
         { id: "INTERPOL-EU-DE", label: "INTERPOL-EU-DE", region: "DE", latency: 8, status: "online" },
         { id: "FBI-US-TX", label: "FBI-US-TX", region: "TX", latency: 23, status: "online" },
@@ -94,12 +100,16 @@ function GlobalNodes() {
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2">
                 {nodes.map((node) => (
-                    <div key={node.id} className="flex items-center justify-between group">
+                    <div
+                        key={node.id}
+                        onClick={() => onSelectNode(node.id)}
+                        className="flex items-center justify-between group cursor-pointer hover:bg-tactical-surface-elevated/50 p-1 rounded transition-all"
+                    >
                         <div className="flex items-center gap-2">
                             <div className={`h-1.5 w-1.5 rounded-full ${node.status === "online" ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" :
                                 node.status === "degraded" ? "bg-amber-500" : "bg-red-500"
                                 }`} />
-                            <span className="font-data text-[9px] font-bold text-tactical-text-muted group-hover:text-tactical-text transition-colors cursor-default">
+                            <span className="font-data text-[9px] font-bold text-tactical-text-muted group-hover:text-tactical-text transition-colors">
                                 {node.label}
                             </span>
                         </div>
@@ -200,6 +210,8 @@ function ActivityFeed() {
 // ─── Main Content ────────────────────────────────────────────────────────────
 
 export default function DashboardContent() {
+    const [selectedNode, setSelectedNode] = useState<string>("");
+
     return (
         <div className="flex flex-col min-h-full lg:h-[calc(100vh-140px)] gap-4 p-1 overflow-x-hidden overflow-y-auto lg:overflow-hidden">
             {/* Main 3-Column Layout */}
@@ -213,7 +225,7 @@ export default function DashboardContent() {
                 {/* Center Column: Ingest + Stats - Priority 1 on mobile */}
                 <div className="order-1 lg:order-2 flex flex-col gap-4 min-h-0">
                     <div className="flex-1 border border-tactical-border/40 bg-tactical-surface/30 rounded p-4 overflow-y-auto custom-scrollbar shadow-inner">
-                        <DNAIngestForm />
+                        <DNAIngestForm selectedNodeId={selectedNode} onNodeChange={setSelectedNode} />
                     </div>
                     <div className="h-fit">
                         <StatsGrid />
@@ -223,7 +235,7 @@ export default function DashboardContent() {
                 {/* Right Column: Nodes + Feed - Priority 2 on mobile */}
                 <div className="order-2 lg:order-3 flex flex-col gap-4 min-h-0 lg:h-full">
                     <div className="h-fit min-h-[160px] lg:h-[45%]">
-                        <GlobalNodes />
+                        <GlobalNodes onSelectNode={setSelectedNode} />
                     </div>
                     <div className="flex-1 overflow-hidden min-h-[250px] lg:min-h-0">
                         <ActivityFeed />

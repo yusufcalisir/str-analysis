@@ -19,6 +19,8 @@ export const metadata: Metadata = {
     "Vertical Anonymous Network for Tactical Analysis of Genomic Evidence — Decentralized STR Matching",
 };
 
+import { Providers } from "./providers";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,7 +31,7 @@ export default function RootLayout({
       <body
         className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -1,0 +1,11 @@
+{
+    "protocol": "groth16",
+    "curve": "bn128",
+    "nPublic": 2,
+    "vk_alpha_1": [],
+    "vk_beta_2": [],
+    "vk_gamma_2": [],
+    "vk_delta_2": [],
+    "vk_alphabeta_12": [],
+    "IC": []
+}

@@ -158,19 +158,24 @@ export default function DatabasePage() {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3 }}
-            className="space-y-4"
+            className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 py-2 sm:py-6 overflow-x-hidden"
         >
             {/* ── Header ── */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                    <Database className="w-4 h-4 text-tactical-primary" />
-                    <h1 className="font-data text-xs font-bold tracking-[0.2em] text-tactical-text uppercase">
-                        Milvus_Vector_Database
-                    </h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex flex-col lg:flex-row lg:items-center gap-2 lg:gap-3 text-center sm:text-left">
+                    <div className="flex items-center justify-center sm:justify-start gap-2">
+                        <Database className="w-4 h-4 text-tactical-primary" />
+                        <h1 className="font-data text-xs sm:text-sm font-bold tracking-[0.1em] lg:tracking-[0.2em] text-tactical-text uppercase">
+                            Milvus_Vector_Database
+                        </h1>
+                    </div>
+                    <span className="font-data text-[7px] lg:text-[8px] text-zinc-600 tracking-wider uppercase">
+                        Vector Engine v2.4 — Active Collection
+                    </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-center sm:justify-end gap-2">
                     <HardDrive className="w-3 h-3 text-zinc-600" />
-                    <span className="font-data text-[9px] text-zinc-600 uppercase tracking-wider">
+                    <span className="font-data text-[8px] sm:text-[9px] text-zinc-600 uppercase tracking-wider">
                         Collection: str_profiles
                     </span>
                 </div>
@@ -187,10 +192,10 @@ export default function DatabasePage() {
                 ].map((s, idx) => (
                     <div
                         key={s.label}
-                        className={`text-center px-2 py-2.5 bg-tactical-surface ${idx === 4 && (stats.total.toLocaleString().length > 5) ? "col-span-2 lg:col-span-1" : ""}`}
+                        className={`text-center px-2 py-3 bg-tactical-surface ${idx === 4 ? "col-span-2 lg:col-span-1 border-t border-tactical-border lg:border-t-0" : ""}`}
                     >
-                        <p className={`font-data text-sm lg:text-base font-bold tabular-nums ${s.color}`}>{s.value}</p>
-                        <p className="font-data text-[6px] lg:text-[7px] uppercase tracking-[0.1em] lg:tracking-[0.15em] text-zinc-600 mt-0.5">{s.label}</p>
+                        <p className={`font-data text-base sm:text-lg font-bold tabular-nums ${s.color}`}>{s.value}</p>
+                        <p className="font-data text-[7px] sm:text-[8px] uppercase tracking-[0.15em] text-zinc-600 mt-0.5">{s.label}</p>
                     </div>
                 ))}
             </div>

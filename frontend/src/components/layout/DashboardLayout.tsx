@@ -182,51 +182,52 @@ export default function DashboardLayout({
             {/* ════════════════════════════════════════════════
           MAIN CONTENT AREA
          ════════════════════════════════════════════════ */}
-            <div className="flex flex-1 flex-col min-h-screen lg:h-full lg:overflow-hidden">
+            <div className="flex flex-1 flex-col min-h-screen lg:h-full lg:overflow-hidden overflow-x-hidden">
                 {/* ── Header ── */}
-                <header className="flex h-14 shrink-0 items-center justify-between border-b border-tactical-border bg-tactical-surface px-4 lg:px-6">
+                <header className="flex h-14 shrink-0 items-center justify-between border-b border-tactical-border bg-tactical-surface px-3 sm:px-4 lg:px-6 overflow-hidden">
                     {/* Left: Branding & Mobile Toggle */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                         <button
                             onClick={() => setMobileMenuOpen(true)}
-                            className="p-1 text-tactical-text-dim hover:text-tactical-text lg:hidden"
+                            className="p-1 text-tactical-text-dim hover:text-tactical-text lg:hidden flex-shrink-0"
                         >
                             <Menu className="h-5 w-5" />
                         </button>
-                        <h1 className="font-data text-xs lg:text-sm font-bold tracking-[0.15em] text-tactical-text uppercase">
+                        <h1 className="font-data text-[10px] sm:text-xs lg:text-sm font-bold tracking-[0.1em] sm:tracking-[0.15em] text-tactical-text uppercase truncate">
                             VANTAGE-STR
                         </h1>
-                        <span className="text-tactical-border hidden sm:inline">|</span>
-                        <span className="font-data text-[10px] lg:text-[11px] tracking-wider text-tactical-text-muted hidden sm:inline">
+                        <span className="text-tactical-border hidden md:inline flex-shrink-0">|</span>
+                        <span className="font-data text-[10px] lg:text-[11px] tracking-wider text-tactical-text-muted hidden md:inline truncate">
                             TACTICAL FORENSIC NETWORK
                         </span>
                     </div>
 
                     {/* Right: Network status */}
-                    <div className="flex items-center gap-2 lg:gap-5">
+                    <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-5 flex-shrink-0">
                         {/* Global Network Status */}
-                        <div className="flex items-center gap-1.5 lg:gap-2 rounded-full border border-tactical-primary/20 bg-tactical-primary/5 px-2 py-1 lg:px-3 lg:py-1.5">
-                            <div className="relative flex h-1.5 w-1.5 lg:h-2 lg:w-2">
+                        <div className="flex items-center gap-1 lg:gap-2 rounded-full border border-tactical-primary/20 bg-tactical-primary/5 px-1.5 py-0.5 sm:px-2 sm:py-1 lg:px-3 lg:py-1.5">
+                            <div className="relative flex h-1 w-1 sm:h-1.5 sm:w-1.5 lg:h-2 lg:w-2">
                                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-tactical-primary opacity-60" />
-                                <span className="relative inline-flex h-1.5 w-1.5 lg:h-2 lg:w-2 rounded-full bg-tactical-primary" />
+                                <span className="relative inline-flex h-1 w-1 sm:h-1.5 sm:w-1.5 lg:h-2 lg:w-2 rounded-full bg-tactical-primary" />
                             </div>
-                            <span className="font-data text-[8px] lg:text-[10px] font-semibold tracking-widest text-tactical-primary uppercase truncate max-w-[80px] sm:max-w-none">
-                                ONLINE
+                            <span className="font-data text-[7px] sm:text-[8px] lg:text-[10px] font-semibold tracking-widest text-tactical-primary uppercase truncate max-w-[30px] sm:max-w-none">
+                                <span className="hidden sm:inline">ONLINE</span>
+                                <span className="sm:hidden">ON</span>
                             </span>
                         </div>
 
-                        {/* Nodes count - Hidden on mobile */}
-                        <div className="hidden items-center gap-1.5 text-tactical-text-muted md:flex">
+                        {/* Nodes count - Hidden on small mobile */}
+                        <div className="hidden items-center gap-1.5 text-tactical-text-muted sm:flex">
                             <Radio className="h-3 w-3" />
-                            <span className="font-data text-[10px] tracking-wider">
+                            <span className="font-data text-[10px] tracking-wider whitespace-nowrap">
                                 {MOCK_NODES_ONLINE} NODES
                             </span>
                         </div>
 
                         {/* Latency - Small on mobile */}
                         <div className="flex items-center gap-1 text-tactical-text-dim lg:gap-1.5">
-                            <Activity className="h-3 w-3" />
-                            <span className="font-data text-[9px] lg:text-[10px] tracking-wider">
+                            <Activity className="h-2.5 w-2.5 sm:h-3 sm:w-3 flex-shrink-0" />
+                            <span className="font-data text-[8px] sm:text-[9px] lg:text-[10px] tracking-wider whitespace-nowrap">
                                 {MOCK_LATENCY}ms
                             </span>
                         </div>
@@ -234,7 +235,7 @@ export default function DashboardLayout({
                 </header>
 
                 {/* ── Page Content ── */}
-                <main className="flex-1 overflow-y-auto p-6">
+                <main className="flex-1 overflow-y-auto p-4 sm:p-6">
                     {children}
                 </main>
 

@@ -33,11 +33,31 @@ function createEmptyRow(id?: string): LocusRow {
     };
 }
 
-export default function DNAIngestForm() {
+interface DNAIngestFormProps {
+    selectedNodeId?: string;
+    onNodeChange?: (id: string) => void;
+}
+
+export default function DNAIngestForm({ selectedNodeId, onNodeChange }: DNAIngestFormProps) {
     const router = useRouter();
     const setLastIngested = useIngestStore((s) => s.setLastIngested);
 
     const [nodeId, setNodeId] = useState("");
+
+    // Sync with external selection
+    useEffect(() => {
+        if (selectedNodeId !== undefined) {
+            setNodeId(selectedNodeId);
+        }
+    }, [selectedNodeId]);
+
+    const handleNodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValue = e.target.value;
+        setNodeId(newValue);
+        if (onNodeChange) {
+            onNodeChange(newValue);
+        }
+    };
     const [rows, setRows] = useState<LocusRow[]>([
         createEmptyRow("initial-row-1"),
         createEmptyRow("initial-row-2"),
@@ -181,7 +201,7 @@ export default function DNAIngestForm() {
                 <input
                     type="text"
                     value={nodeId}
-                    onChange={(e) => setNodeId(e.target.value)}
+                    onChange={handleNodeChange}
                     placeholder="e.g. INTERPOL-EU-DE"
                     className="
             w-full rounded-md border border-tactical-border bg-tactical-bg px-3 py-2
